@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BrowserPilot</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="panel">
+    <header class="header">
+      <img src="icons/icon48.png" class="logo" alt="BrowserPilot" />
+      <div class="heading">
+        <h1 class="title" data-i18n="ext_name">BrowserPilot</h1>
+        <p class="tagline" data-i18n="ext_tagline">AI browser control bridge</p>
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="status-row">
+        <span id="statusBadge" class="badge" data-state="checking" data-i18n="status_checking">Checking...</span>
+        <button id="refreshBtn" class="icon-btn" type="button"
+                data-i18n-title="btn_reconnect" title="Reconnect" aria-label="Reconnect">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.74 10h-2.08A6 6 0 1 1 12 6a5.93 5.93 0 0 1 4.22 1.78L13 11h7V4z"/>
+          </svg>
+        </button>
+      </div>
+
+      <p class="description" data-i18n="description_text">通过本地服务连接真实 Chrome，让 AI Agent 安全接管、调试与自动化浏览器。</p>
+
+      <dl class="meta">
+        <div class="meta-row">
+          <dt data-i18n="meta_host">主机</dt>
+          <dd id="hostName">--</dd>
+        </div>
+        <div class="meta-row">
+          <dt data-i18n="meta_version">版本</dt>
+          <dd id="version">--</dd>
+        </div>
+        <div class="meta-row" id="lastConnectedRow" hidden>
+          <dt data-i18n="meta_last_connected">上次连接</dt>
+          <dd id="lastConnected">--</dd>
+        </div>
+      </dl>
+
+      <div class="actions">
+        <button id="dashboardBtn" class="primary-btn" type="button" data-i18n="btn_open_dashboard">打开管理面板</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "browser-pilot": {
+      "command": "node",
+      "args": [
+        "./orchestrator/mcp-adapter.js"
+      ]
+    }
+  }
+}

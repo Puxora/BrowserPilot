@@ -1,0 +1,43 @@
+name: Publish npm package
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish release to npm
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: windows-latest
+    environment: npm
+    defaults:
+      run:
+        working-directory: orchestrator
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+          cache: npm
+          cache-dependency-path: orchestrator/package-lock.json
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: orchestrator/global.json
+      - name: Install npm with Trusted Publishing support
+        run: npm install --global npm@11.5.1
+      - run: npm ci --ignore-scripts
+      - name: Verify release tag and package version
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          if ('${{ github.event.release.tag_name }}' -ne "v$version") {
+            throw "Release tag must be v$version"
+          }
+      - run: npm run build:native-host
+      - run: npm run release:check
+      - run: npm publish --access public --provenance

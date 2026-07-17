@@ -1,0 +1,26 @@
+{
+  "name": "browserpilot",
+  "version": "1.1.0",
+  "description": "A local browser control bridge for AI agents.",
+  "author": {
+    "name": "Puxora"
+  },
+  "license": "MIT",
+  "keywords": ["chrome", "browser", "automation", "mcp"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "BrowserPilot",
+    "shortDescription": "Connect Codex, Claude Code, and MCP clients to your real Chrome browser.",
+    "longDescription": "BrowserPilot is a local browser control bridge with tab claiming, visible DOM inspection, node-based interaction, screenshots, long screenshots, scheduled tasks, and MCP tools for multiple AI agents.",
+    "developerName": "Puxora",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Browser", "MCP"],
+    "defaultPrompt": [
+      "Open my current Chrome tab and inspect the page.",
+      "Search in Chrome using visible DOM controls.",
+      "Create a scheduled browser automation task."
+    ],
+    "brandColor": "#1B6BFF"
+  }
+}

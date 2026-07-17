@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BrowserPilot - 智能控制台</title>
+  <link rel="icon" type="image/svg+xml" href="browserpilot-icon.svg">
+  <link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
+  <meta name="theme-color" content="#101319">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <!-- 顶部状态栏 -->
+  <header class="header">
+    <div class="logo-area">
+      <img src="browserpilot-icon.svg" class="logo-icon" alt="" aria-hidden="true">
+      <h1>BrowserPilot</h1>
+    </div>
+    <div class="status-bar">
+      <div class="status-pill">
+        <span class="status-text" id="chromeStatusText">Chrome 连接中...</span>
+        <span class="status-indicator" id="chromeStatus">●</span>
+      </div>
+      <div class="status-pill is-hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="status-icon"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+        <span class="status-text" id="taskCount">0 个任务</span>
+      </div>
+      <div class="status-pill is-hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="status-icon"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span class="status-text" id="daemonStatus">服务检查中</span>
+      </div>
+    </div>
+    <button class="icon-button sidebar-trigger" id="sidebarToggle" type="button" aria-label="切换导航菜单" aria-expanded="false">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+    </button>
+  </header>
+
+  <div class="main-layout">
+    <!-- 侧边栏 -->
+    <aside class="sidebar" id="sidebar">
+      <nav aria-label="主导航">
+        <button class="nav-btn active" data-view="tasks">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 8h10"/><path d="M7 12h10"/><path d="M7 16h10"/></svg>
+          <span class="nav-text">任务列表</span>
+        </button>
+        <button class="nav-btn" data-view="create">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+          <span class="nav-text">新建任务</span>
+        </button>
+        <button class="nav-btn" data-view="browser-test">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+          <span class="nav-text">浏览器调试</span>
+        </button>
+        <button class="nav-btn" data-view="logs">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+          <span class="nav-text">日志中心</span>
+        </button>
+        <button class="nav-btn" data-view="settings">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-icon"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span class="nav-text">权限与设置</span>
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="monitor-panel">
+          <div class="monitor-header">
+            <span class="monitor-version">v1.1.0</span>
+          </div>
+          <div class="monitor-divider"></div>
+          <div class="monitor-ports">
+            <div class="port-item ws">
+              <span class="dot"></span>
+              <span class="lbl">WS</span>
+              <span class="val">9877</span>
+            </div>
+            <div class="port-item web">
+              <span class="dot"></span>
+              <span class="lbl">WEB</span>
+              <span class="val">9876</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="content">
+      <!-- 任务列表视图 -->
+      <section id="view-tasks" class="view active">
+        <div class="section-header section-header-actions">
+          <div>
+            <p class="section-eyebrow">AUTOMATION</p>
+            <h2>定时自动化任务</h2>
+            <p class="section-desc">在此管理和触发预设的浏览器脚本流程</p>
+          </div>
+          <button class="btn btn-primary" type="button" onclick="switchView('create')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            新建任务
+          </button>
+        </div>
+        <div id="taskList" class="task-grid">
+          <div class="empty-state">
+            <div class="empty-icon">📂</div>
+            <p>暂无定时自动化任务</p>
+            <button class="btn btn-primary" onclick="switchView('create')">立刻创建任务</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 新建任务视图 -->
+      <section id="view-create" class="view">
+        <div class="section-header">
+          <p class="section-eyebrow">CONFIGURATION</p>
+          <h2>创建自动化任务</h2>
+          <p class="section-desc">编写一个包含元信息和完整浏览器流程的 JS 任务模块</p>
+        </div>
+        <div class="glass-card">
+          <form id="taskForm" class="task-form" novalidate>
+            <div class="form-group">
+              <label for="taskSource">任务模块 <span class="label-badge">JavaScript</span></label>
+              <textarea id="taskSource" rows="18" spellcheck="false" placeholder="export default {
+  name: '示例网站-自动巡检',
+  description: '打开页面并检查内容',
+  schedule: '*/30 * * * *',
+  enabled: true,
+  options: { fallbackUrl: 'about:blank' },
+  async run(ctx) {
+    await ctx.navigate('https://example.com');
+    await ctx.waitForLoad();
+  },
+};"></textarea>
+              <span class="field-hint">默认导出 <code>{ name, schedule, async run(ctx) {} }</code>。<code>ctx</code> 仅提供经审批的浏览器操作。</span>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">保存并应用</button>
+            </div>
+          </form>
+          <div id="formResult"></div>
+        </div>
+      </section>
+
+      <!-- 浏览器测试视图 -->
+      <section id="view-browser-test" class="view">
+        <div class="section-header">
+          <p class="section-eyebrow">LIVE DEBUGGING</p>
+          <h2>即时浏览器测试</h2>
+          <p class="section-desc">单步执行并调试 AI 能够理解和发起的指令</p>
+        </div>
+        <div class="test-layout">
+          <div class="glass-card test-controls-card">
+            <h3>动作执行器</h3>
+            <div class="form-group">
+              <label for="testTabId">目标标签页</label>
+              <div class="inline-control-row">
+                <select id="testTabId" class="custom-select" aria-label="选择要调试的标签页">
+                  <option value="">正在加载标签页…</option>
+                </select>
+                <button id="btnRefreshTestTabs" class="btn btn-compact" type="button">刷新</button>
+              </div>
+              <span class="field-hint">所有页面动作都会明确发送到此标签页。</span>
+            </div>
+            <div class="form-group">
+              <label for="testAction">选择操作</label>
+              <select id="testAction" class="custom-select">
+                <option value="navigate">导航 (navigate)</option>
+                <option value="getContent">获取页面内容 (getContent)</option>
+                <option value="screenshot">截取当前屏幕 (screenshot)</option>
+                <option value="longScreenshot">截取全网页长截图 (longScreenshot)</option>
+                <option value="listTabs">列出所有标签页 (listTabs)</option>
+                <option value="click">模拟鼠标点击 (click)</option>
+                <option value="scroll">平滑滚动页面 (scroll)</option>
+                <option value="visualStart">开启可视化调试</option>
+                <option value="visualPointerMove">移动指针测试</option>
+                <option value="visualStop">关闭可视化调试</option>
+              </select>
+            </div>
+            <div class="form-group" id="testUrlGroup">
+              <label for="testUrl">URL 地址</label>
+              <input type="text" id="testUrl" placeholder="https://httpbin.org/get" value="https://httpbin.org/get">
+            </div>
+            <div class="form-group is-hidden" id="testSelectorGroup">
+              <label for="testSelector">CSS 选择器</label>
+              <input type="text" id="testSelector" placeholder=".topic-list-item" value=".nav-btn[data-view=&quot;settings&quot;]">
+            </div>
+            <div class="form-group" id="testVisualLabelGroup">
+              <label for="testVisualLabel">调试者标签</label>
+              <input type="text" id="testVisualLabel" placeholder="BrowserPilot" value="BrowserPilot">
+              <span class="field-hint">显示在目标页面的可视化提示条上。</span>
+            </div>
+            <button id="btnTest" class="btn btn-secondary btn-full">立刻运行此动作</button>
+          </div>
+
+          <div class="glass-card test-result-card">
+            <h3>控制台返回结果</h3>
+            <div id="testResult" class="code-output">
+              <span class="output-placeholder">等待测试指令执行...</span>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- 日志视图 -->
+      <section id="view-logs" class="view">
+        <div class="section-header">
+          <p class="section-eyebrow">ACTIVITY</p>
+          <h2>系统与任务日志</h2>
+          <p class="section-desc">实时监控任务调度与浏览器底层 API 的交互历史</p>
+        </div>
+        <div class="glass-card log-card">
+          <div class="log-header">
+            <label for="logTaskSelect">筛选日志</label>
+            <select id="logTaskSelect" class="custom-select inline-select">
+              <option value="">-- 选择定时任务 --</option>
+            </select>
+          </div>
+          <div id="logEntries" class="log-container">
+            <div class="empty-state">
+              <p>请在上方选择一项任务以查看详细日志</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 设置与权限中心 -->
+      <section id="view-settings" class="view">
+        <div class="section-header">
+          <p class="section-eyebrow">SECURITY</p>
+          <h2>安全权限与设置中心</h2>
+          <p class="section-desc">管控 AI 执行指令的权限，防止任意高危动作修改本地系统或网页数据</p>
+        </div>
+
+        <div class="settings-grid">
+          <!-- 权限控制卡片 -->
+          <div class="glass-card">
+            <h3>核心安全设置</h3>
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-title">自动化写操作强制审批</span>
+                <span class="setting-description">当 AI 点击、输入、关闭标签页或执行页面 JavaScript 时，在此控制台进行审批</span>
+              </div>
+              <div class="setting-control">
+                <select id="settingApproval" class="custom-select compact-select" aria-label="自动化写操作审批方式">
+                  <option value="always">每次询问审批</option>
+                  <option value="none">直接运行不审批</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-title">页面 JavaScript 开发者权限</span>
+                <span class="setting-description">允许 AI 在当前网页上下文执行任意 JavaScript；仅应在受信任站点开启</span>
+              </div>
+              <div class="setting-control">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="settingCdp" aria-label="页面 JavaScript 开发者权限">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-title">文件下载权限</span>
+                <span class="setting-description">仅拦截 BrowserPilot 已接管标签页触发的下载；审批超时默认取消</span>
+              </div>
+              <div class="setting-control">
+                <select id="settingDownload" class="custom-select compact-select" aria-label="文件下载权限">
+                  <option value="always">始终允许</option>
+                  <option value="ask">每次询问</option>
+                  <option value="none">严格禁止</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-title">文件上传权限</span>
+                <span class="setting-description">控制 BrowserPilot 打开网页文件选择器；批准后仍需由用户在系统对话框中选择文件</span>
+              </div>
+              <div class="setting-control">
+                <select id="settingUpload" class="custom-select compact-select" aria-label="文件上传权限">
+                  <option value="always">始终允许</option>
+                  <option value="ask">每次询问</option>
+                  <option value="none">严格禁止</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="form-actions form-actions-spaced">
+              <button id="btnSaveSettings" class="btn btn-primary">保存安全配置</button>
+            </div>
+          </div>
+
+          <!-- 例外站点配置卡片 -->
+          <div class="glass-card">
+            <h3>特定域名例外策略</h3>
+            <p class="section-desc card-desc">为常用网站设置独立规则，覆写全局写操作审批设置</p>
+            
+            <form id="sitePermissionForm" class="site-rule-form">
+              <input type="text" id="siteName" placeholder="例如：github.com" required aria-label="目标域名">
+              <select id="siteApproval" class="custom-select inline-select" required aria-label="例外规则">
+                <option value="none">免审批运行</option>
+                <option value="always">强制询问审批</option>
+              </select>
+              <button type="submit" class="btn">添加例外</button>
+            </form>
+
+            <div class="site-rules-container">
+              <table class="site-rules-table">
+                <thead>
+                  <tr>
+                    <th>目标域名</th>
+                    <th>动作规则</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="siteRulesBody">
+                  <tr>
+                    <td colspan="3" class="no-rules">暂未配置特定域名例外规则</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Chrome 扩展安装指引 -->
+          <div class="glass-card full-width-card install-guide-card">
+            <div class="guide-content">
+              <h3>一键部署 Chrome 浏览器扩展</h3>
+              <p>为了让 AI 与您的 Chrome 浏览器无缝通信，您需要安装 BrowserPilot 浏览器扩展：</p>
+              <ol class="styled-list">
+                <li>点击右侧按钮，一键打包并下载扩展的压缩包。</li>
+                <li>解压下载到的 <code>chrome-extension.zip</code> 文件夹。</li>
+                <li>在 Chrome 浏览器中访问 <code>chrome://extensions/</code>，在右上角开启<strong>开发者模式</strong>。</li>
+                <li>点击<strong>加载已解压的扩展程序</strong>，选中刚刚解压出来的文件夹。</li>
+              </ol>
+            </div>
+            <div class="guide-actions">
+              <a href="/api/download-extension" class="btn btn-primary btn-large">📦 一键打包下载 Chrome 扩展</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- 实时审批全局弹窗容器 -->
+<div id="approvalModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="approvalTitle">
+  <div class="glass-modal">
+    <div class="modal-header">
+      <span class="modal-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3v8Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+      <h3 id="approvalTitle">BrowserPilot 审批请求</h3>
+    </div>
+    <div class="modal-body">
+      <p>检测到需要确认的自动化操作：</p>
+      <div class="approval-details">
+        <div class="detail-row">
+          <span class="label">操作内容:</span>
+          <span class="value action-badge" id="apprAction">点击页面元素</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">标签页ID:</span>
+          <span class="value" id="apprTab">123</span>
+        </div>
+        <div class="detail-row code-style">
+          <span class="label">参数细节:</span>
+          <pre class="value" id="apprParams">{}</pre>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger" id="btnApprReject">拒绝</button>
+      <button class="btn btn-primary" id="btnApprApprove">批准</button>
+    </div>
+  </div>
+</div>
+
+<div id="confirmModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <div class="glass-modal confirm-modal">
+    <div class="modal-header">
+      <span class="modal-icon modal-icon-danger" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 2.9 1.8 17a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span>
+      <h3 id="confirmTitle">确认操作</h3>
+    </div>
+    <div class="modal-body"><p id="confirmMessage"></p></div>
+    <div class="modal-footer">
+      <button class="btn" type="button" id="btnConfirmCancel">取消</button>
+      <button class="btn btn-danger-solid" type="button" id="btnConfirmAccept">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<div id="templateModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="templateTitle">
+  <div class="glass-modal template-modal">
+    <div class="modal-header">
+      <span class="modal-icon" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </span>
+      <h3 id="templateTitle">任务模块 (JavaScript)</h3>
+    </div>
+    <div class="modal-body">
+      <div class="source-editor-wrapper">
+        <textarea id="templateCode" class="source-editor-textarea" spellcheck="false"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" type="button" id="btnCloseTemplate">关闭</button>
+      <button class="btn btn-secondary" type="button" id="btnCopyTemplate">复制配置</button>
+      <button class="btn btn-primary" type="button" id="btnSaveTemplate">保存配置</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

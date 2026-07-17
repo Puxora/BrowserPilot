@@ -1,0 +1,62 @@
+{
+  "ext_name": {
+    "message": "BrowserPilot",
+    "description": "扩展显示名称"
+  },
+  "ext_description": {
+    "message": "面向 AI Agent 的本地浏览器控制桥接插件。",
+    "description": "扩展描述"
+  },
+  "ext_tagline": {
+    "message": "AI 浏览器控制桥",
+    "description": "扩展名称下的简短标语"
+  },
+  "status_checking": {
+    "message": "检测中...",
+    "description": "正在查询连接状态时显示"
+  },
+  "status_connected": {
+    "message": "已连接",
+    "description": "Native Host 连接已建立"
+  },
+  "status_connecting": {
+    "message": "连接中",
+    "description": "Native Host 连接进行中"
+  },
+  "status_disconnected": {
+    "message": "未连接",
+    "description": "Native Host 连接不可用"
+  },
+  "description_text": {
+    "message": "通过本地服务连接真实 Chrome，让 AI Agent 安全接管、调试与自动化浏览器。",
+    "description": "桥接功能的简短描述"
+  },
+  "meta_host": {
+    "message": "主机",
+    "description": "Native Host 名称字段标签"
+  },
+  "meta_version": {
+    "message": "版本",
+    "description": "扩展版本字段标签"
+  },
+  "meta_last_connected": {
+    "message": "上次连接",
+    "description": "上次成功连接时间戳字段标签"
+  },
+  "btn_reconnect": {
+    "message": "重新连接",
+    "description": "重新连接按钮的 title/aria-label"
+  },
+  "btn_open_dashboard": {
+    "message": "打开管理面板",
+    "description": "打开管理面板的按钮"
+  },
+  "never_connected": {
+    "message": "从未",
+    "description": "没有上次连接时间戳时显示"
+  },
+  "no_error": {
+    "message": "无",
+    "description": "没有错误时显示"
+  }
+}

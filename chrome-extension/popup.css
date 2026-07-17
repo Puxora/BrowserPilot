@@ -1,0 +1,317 @@
+/* BrowserPilot — Popup 样式
+ * 设计原则：颜色/间距/圆角全部走 CSS 变量，禁止写死值（符合 CLAUDE.md 主题红线）。
+ */
+
+:root {
+  /* 基础色板 */
+  --bg: #f1f3f7;
+  --card: #ffffff;
+  --card-muted: #f8f9fb;
+  --border: #e4e6eb;
+  --text: #1f2329;
+  --text-muted: #6b7280;
+  --text-inverse: #ffffff;
+
+  /* 主色与按钮 */
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-active: #1e40af;
+  --focus-ring: rgba(37, 99, 235, 0.32);
+
+  /* 状态色 */
+  --status-ok: #16a34a;
+  --status-ok-bg: #dcfce7;
+  --status-warn: #d97706;
+  --status-warn-bg: #fef3c7;
+  --status-err: #dc2626;
+  --status-err-bg: #fee2e2;
+  --status-checking: #6b7280;
+  --status-checking-bg: #eef0f3;
+
+  /* 几何 */
+  --radius-card: 12px;
+  --radius-badge: 999px;
+  --radius-btn: 8px;
+  --gap-xs: 6px;
+  --gap-sm: 10px;
+  --gap-md: 16px;
+  --gap-lg: 20px;
+
+  /* 阴影 */
+  --shadow-card: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1d23;
+    --card: #242830;
+    --card-muted: #1f232b;
+    --border: #333842;
+    --text: #e6e8ec;
+    --text-muted: #9aa3b2;
+    --primary: #3b82f6;
+    --primary-hover: #60a5fa;
+    --primary-active: #2563eb;
+    --focus-ring: rgba(96, 165, 250, 0.34);
+
+    --status-ok: #4ade80;
+    --status-ok-bg: rgba(22, 163, 74, 0.18);
+    --status-warn: #fbbf24;
+    --status-warn-bg: rgba(217, 119, 6, 0.18);
+    --status-err: #f87171;
+    --status-err-bg: rgba(220, 38, 38, 0.18);
+    --status-checking: #9aa3b2;
+    --status-checking-bg: rgba(154, 163, 178, 0.15);
+
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 360px;
+  min-height: 276px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+.panel {
+  padding: var(--gap-lg);
+}
+
+/* ── Header ─────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: 0 var(--gap-xs) var(--gap-md);
+}
+
+.logo {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-btn);
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tagline {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── Card ───────────────────────────── */
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: var(--gap-lg);
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 5px 11px;
+  border-radius: var(--radius-badge);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--status-checking);
+  background: var(--status-checking-bg);
+}
+
+.badge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.badge[data-state="connected"] {
+  color: var(--status-ok);
+  background: var(--status-ok-bg);
+}
+
+.badge[data-state="connecting"] {
+  color: var(--status-warn);
+  background: var(--status-warn-bg);
+}
+
+.badge[data-state="disconnected"] {
+  color: var(--status-err);
+  background: var(--status-err-bg);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-btn);
+  background: var(--card);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.icon-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--status-checking-bg);
+}
+
+.icon-btn:focus-visible,
+.primary-btn:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.icon-btn:disabled,
+.primary-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.icon-btn:active {
+  color: var(--primary-active);
+}
+
+.icon-btn.spinning svg {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Description ────────────────────── */
+
+.description {
+  margin: var(--gap-md) 0 var(--gap-lg);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ── Meta ───────────────────────────── */
+
+.meta {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-btn);
+  background: var(--card-muted);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.meta-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  min-height: 18px;
+}
+
+.meta-row dt {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.meta-row dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  text-align: right;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Actions ────────────────────────── */
+
+.actions {
+  margin-top: var(--gap-lg);
+}
+
+.primary-btn {
+  width: 100%;
+  min-height: 38px;
+  padding: 9px 12px;
+  border: none;
+  border-radius: var(--radius-btn);
+  background: var(--primary);
+  color: var(--text-inverse);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.primary-btn:hover {
+  background: var(--primary-hover);
+}
+
+.primary-btn:active {
+  background: var(--primary-active);
+}
+
+@media (max-width: 380px) {
+  body { width: 320px; }
+  .panel { padding: var(--gap-md); }
+  .card { padding: var(--gap-md); }
+  .meta-row dd { max-width: 160px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,8 @@
+node_modules/
+orchestrator/node_modules/
+orchestrator/logs/
+orchestrator/obj/
+*.log
+*.bak
+orchestrator/scratch/
+.DS_Store
