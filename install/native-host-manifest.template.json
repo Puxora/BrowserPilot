@@ -1,0 +1,9 @@
+{
+  "name": "com.browserpilot.bridge",
+  "description": "BrowserPilot Native Messaging Bridge — relays browser commands to the orchestrator daemon",
+  "path": "<HOST_EXE_PATH>",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://<EXTENSION_ID>/"
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "ext_name": {
+    "message": "BrowserPilot",
+    "description": "Extension display name"
+  },
+  "ext_description": {
+    "message": "A local browser control bridge for AI agents.",
+    "description": "Extension description"
+  },
+  "ext_tagline": {
+    "message": "AI browser control bridge",
+    "description": "Short tagline under the extension name"
+  },
+  "status_checking": {
+    "message": "Checking...",
+    "description": "Status shown while status is being queried"
+  },
+  "status_connected": {
+    "message": "Connected",
+    "description": "Native Host connection established"
+  },
+  "status_connecting": {
+    "message": "Connecting",
+    "description": "Native Host connection in progress"
+  },
+  "status_disconnected": {
+    "message": "Disconnected",
+    "description": "Native Host connection not available"
+  },
+  "description_text": {
+    "message": "Connect AI agents to your real Chrome through a local control bridge.",
+    "description": "Short description of what the bridge does"
+  },
+  "meta_host": {
+    "message": "Host",
+    "description": "Label for the native host name field"
+  },
+  "meta_version": {
+    "message": "Version",
+    "description": "Label for the extension version field"
+  },
+  "meta_last_connected": {
+    "message": "Last connected",
+    "description": "Label for the last successful connection timestamp"
+  },
+  "btn_reconnect": {
+    "message": "Reconnect",
+    "description": "Reconnect button title/aria-label"
+  },
+  "btn_open_dashboard": {
+    "message": "Open dashboard",
+    "description": "Button that opens the management panel"
+  },
+  "never_connected": {
+    "message": "Never",
+    "description": "Shown when there is no last connected timestamp"
+  },
+  "no_error": {
+    "message": "None",
+    "description": "Shown when there is no error"
+  }
+}

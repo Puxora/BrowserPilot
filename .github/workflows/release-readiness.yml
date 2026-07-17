@@ -1,0 +1,40 @@
+name: Release readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: Version expected in orchestrator/package.json (for example 1.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify npm release candidate
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: orchestrator
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: orchestrator/package-lock.json
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: orchestrator/global.json
+      - run: npm ci --ignore-scripts
+      - run: npm run build:native-host
+      - name: Verify requested version
+        env:
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+        run: node -e "if (require('./package.json').version !== process.env.EXPECTED_VERSION) { throw new Error('package.json version does not match expected_version'); }"
+      - run: npm run release:check
+      - name: Verify clean generated binary
+        run: git diff --exit-code -- native-relay-host.exe
+        working-directory: orchestrator

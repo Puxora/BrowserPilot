@@ -1,0 +1,71 @@
+{
+  "name": "@puxora/browserpilot",
+  "version": "1.1.0",
+  "description": "BrowserPilot orchestrator daemon and native relay",
+  "keywords": [
+    "mcp",
+    "browser",
+    "automation",
+    "chrome",
+    "ai-agent"
+  ],
+  "author": "Puxora",
+  "license": "MIT",
+  "homepage": "https://github.com/Puxora/BrowserPilot#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Puxora/BrowserPilot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Puxora/BrowserPilot/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "browserpilot": "bin/cli.js"
+  },
+  "files": [
+    "README.md",
+    "README.en.md",
+    "LICENSE",
+    "SECURITY.md",
+    "CHANGELOG.md",
+    "bin/",
+    "chrome-extension/",
+    "mcp-adapter.js",
+    "native-relay-host.cs",
+    "native-relay-host.csproj",
+    "native-relay-host.exe",
+    "native-relay.js",
+    "global.json",
+    "scripts/",
+    "src/",
+    "web-ui/"
+  ],
+  "scripts": {
+    "prepack": "node scripts/prepare-package.js",
+    "postpack": "node scripts/clean-package.js",
+    "prepublishOnly": "npm run release:check",
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.js",
+    "test:coverage": "node --test --experimental-test-coverage test/*.test.js",
+    "build:native-host": "node scripts/build-native-host.js",
+    "check:native-host": "node scripts/build-native-host.js --verify",
+    "check:tools": "node scripts/check-mcp-tools.js",
+    "check:package": "node scripts/verify-package.js",
+    "release:check": "npm test && npm run check:tools && npm run check:native-host && npm audit --package-lock-only --audit-level=moderate && npm run check:package"
+  },
+  "dependencies": {
+    "croner": "^8.1.0",
+    "express": "^4.21.0",
+    "ws": "^8.18.0",
+    "adm-zip": "^0.5.12"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
