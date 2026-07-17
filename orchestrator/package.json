@@ -60,7 +60,7 @@
     "release:check": "npm test && npm run check:tools && npm run check:native-host && npm audit --package-lock-only --audit-level=moderate && npm run check:package"
   },
   "dependencies": {
-    "croner": "^8.1.0",
+    "croner": "^10.0.1",
     "express": "^4.21.0",
     "ws": "^8.18.0",
     "adm-zip": "^0.5.12"
