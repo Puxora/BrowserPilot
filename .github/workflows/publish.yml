@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           registry-url: https://registry.npmjs.org/
           cache: npm
           cache-dependency-path: orchestrator/package-lock.json
@@ -41,3 +41,5 @@ jobs:
       - run: npm run build:native-host
       - run: npm run release:check
       - run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
