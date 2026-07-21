@@ -10,6 +10,7 @@ import { hostMatches } from '../src/security-policy.js';
 import { TaskStore, validateSettings, validateTaskId } from '../src/storage.js';
 import { WebUiServer } from '../src/web-server.js';
 import { ApiTokenStore } from '../src/token-store.js';
+import { VisualLeaseManager } from '../src/visual-lease-manager.js';
 
 test('task identifiers reject path traversal', () => {
   assert.equal(validateTaskId('task-1234-safe'), 'task-1234-safe');
@@ -99,6 +100,25 @@ test('visual control leases cannot be claimed or stopped by another session', ()
   assert.equal(server._canControlTab('visualStop', 42, {}, 'first-session'), true);
   assert.equal(server._canControlTab('visualStop', undefined, {}, 'first-session'), false);
   assert.equal(server._canControlTab('visualStop', 43, {}, 'second-session'), true);
+});
+
+test('visual cancellation aborts active work and requires an explicit restart', () => {
+  const manager = new VisualLeaseManager({ sendCommand: async () => ({}) }, 60_000);
+  const controller = new AbortController();
+
+  manager.start(42, 'session-1');
+  manager.register(42, 'session-1', controller);
+
+  assert.equal(manager.cancel(42), true);
+  assert.equal(controller.signal.aborted, true);
+  assert.equal(manager.has(42), false);
+  assert.equal(manager.isCancelled(42, 'session-1'), true);
+  assert.equal(manager.isCancelled(42, 'session-2'), false);
+  assert.equal(manager.isCancelled(undefined, undefined), false);
+
+  manager.start(42, 'session-1');
+  assert.equal(manager.isCancelled(42, 'session-1'), false);
+  manager.release(42, 'session-1');
 });
 
 test('scheduler reload removes an orphaned named Croner job', (t) => {

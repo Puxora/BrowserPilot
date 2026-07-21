@@ -533,18 +533,18 @@ html[${PAGE_LAYOUT_ACTIVE_ATTRIBUTE}="${PAGE_LAYOUT_ACTIVE_ATTRIBUTE_VALUE}"] {
   position: fixed;
   top: 0; left: 0;
   width: 100%;
-  min-height: 48px;
+  min-height: 36px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 8px 24px;
+  justify-content: flex-start;
+  gap: 9px;
+  padding: 5px 10px;
   background: #ffffff;
   color: #1f2328;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
   border-bottom: 1px solid rgba(88,166,255,0.35);
-  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  box-shadow: none;
   pointer-events: none;
   transform: translateY(-100%);
   animation: ca-banner-in 260ms ease-out forwards;
@@ -558,27 +558,27 @@ html[${PAGE_LAYOUT_ACTIVE_ATTRIBUTE}="${PAGE_LAYOUT_ACTIVE_ATTRIBUTE_VALUE}"] {
 #${BANNER_ID}.ca-state-error   { border-bottom-color: rgba(248,81,73,0.6); }
 #${BANNER_ID}.ca-state-done    { border-bottom-color: rgba(63,185,80,0.6); }
 #${BANNER_ID} .ca-banner-dot {
-  width: 9px; height: 9px; border-radius: 50%;
+  width: 7px; height: 7px; border-radius: 50%;
   background: #58a6ff; flex: 0 0 auto;
-  box-shadow: 0 0 0 4px rgba(88,166,255,0.18);
+  box-shadow: 0 0 0 3px rgba(88,166,255,0.16);
   animation: ca-dot-pulse 1.4s ease-in-out infinite;
 }
-#${BANNER_ID} .ca-banner-msg { flex: 0 1 auto; max-width: 70vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#${BANNER_ID} .ca-banner-msg { flex: 0 1 auto; max-width: min(70vw, 520px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #${BANNER_ID} .ca-banner-state { color: #8b949e; font-size: 12px; font-weight: 400; }
 #${CANCEL_BTN_ID} {
   pointer-events: auto;
   flex: 0 0 auto;
-  padding: 6px 14px;
-  border: 1px solid rgba(248,81,73,0.5);
-  border-radius: 6px;
-  background: rgba(248,81,73,0.08);
-  color: #d1242f;
-  font-size: 13px;
+  padding: 3px 10px;
+  border: 1px solid #30363d;
+  border-radius: 5px;
+  background: #24292f;
+  color: #ffffff;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease;
 }
-#${CANCEL_BTN_ID}:hover { background: rgba(248,81,73,0.18); }
+#${CANCEL_BTN_ID}:hover { background: #343b43; }
 
 @keyframes ca-banner-in { to { transform: translateY(0); } }
 @keyframes ca-dot-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
@@ -1012,10 +1012,6 @@ html[${PAGE_LAYOUT_ACTIVE_ATTRIBUTE}="${PAGE_LAYOUT_ACTIVE_ATTRIBUTE_VALUE}"] {
       this.pointer = p;
     }
 
-    /**
-     * 取消按钮点击：第一版仅隐藏 overlay 并向 background 上报 cancelRequested。
-     * 任务级中断留给第二版。
-     */
     _onCancel() {
       // 立即隐藏，给用户即时反馈
       this.stop({ reason: 'cancelled' });
@@ -1177,33 +1173,21 @@ html[${PAGE_LAYOUT_ACTIVE_ATTRIBUTE}="${PAGE_LAYOUT_ACTIVE_ATTRIBUTE_VALUE}"] {
       throw new Error(`节点不支持输入: ${source.selector || source.nodeId}`);
     }
 
-    // 如果需要清空
-    if (el.value && el.value.length > 0) {
-      el.select();
-      el.dispatchEvent(new Event('select', { bubbles: true }));
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      Object.getPrototypeOf(el), 'value'
+    )?.set;
+    const setValue = value => valueSetter ? valueSetter.call(el, value) : (el.value = value);
+    setValue('');
+    el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward', data: null }));
+    const beforeInput = new InputEvent('beforeinput', {
+      bubbles: true, cancelable: true, inputType: 'insertText', data: text
+    });
+    if (el.dispatchEvent(beforeInput)) {
+      setValue(text);
+      el.selectionStart = el.selectionEnd = text.length;
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
     }
-
-    // 逐字符输入
-    for (const char of text) {
-      const keyOpts = {
-        key: char, code: `Key${char.toUpperCase()}`,
-        keyCode: char.charCodeAt(0), which: char.charCodeAt(0),
-        bubbles: true, cancelable: true, composed: true
-      };
-
-      el.dispatchEvent(new KeyboardEvent('keydown', keyOpts));
-      el.dispatchEvent(new KeyboardEvent('keypress', keyOpts));
-
-      // 更新 value
-      const start = el.selectionStart || 0;
-      el.value = el.value.slice(0, start) + char + el.value.slice(el.selectionEnd || start);
-      el.selectionStart = el.selectionEnd = start + 1;
-
-      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: char }));
-      el.dispatchEvent(new KeyboardEvent('keyup', keyOpts));
-
-      await sleep(rand(50, 150)); // 人类打字速度
-    }
+    await sleep(Math.min(800, Math.max(80, text.length * rand(35, 65))));
 
     // 触发 change 事件
     el.dispatchEvent(new Event('change', { bubbles: true }));

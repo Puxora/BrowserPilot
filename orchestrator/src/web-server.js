@@ -288,6 +288,7 @@ export class WebUiServer {
       }
       if (event === 'visualCancelRequested') {
         this.scheduler?.cancelByTab(eventData.tabId);
+        this.visualLeases.cancel(normalizeTabId(eventData.tabId));
       }
     };
 
@@ -732,6 +733,7 @@ export class WebUiServer {
 
     // ── 浏览器操作 ────────────────────
     api.post('/browser/:action', async (req, res) => {
+      let requestContext;
       try {
         const { action } = req.params;
         const { tabId: requestedTabId, controllerSessionId, ...params } = req.body;
@@ -745,7 +747,14 @@ export class WebUiServer {
           return res.status(403).json({ code: 1, message: '该标签页由其他控制会话持有' });
         }
 
+        const resumesControl = action === 'claimTab' || action === 'visualStart';
+        if (!resumesControl && this.visualLeases.isCancelled(tabId, controllerSessionId)) {
+          return res.json({ code: 1, message: '用户已取消当前浏览器控制，请重新认领标签页后继续' });
+        }
+
         const abortController = new AbortController();
+        requestContext = { tabId, controllerSessionId, abortController };
+        this.visualLeases.register(tabId, controllerSessionId, abortController);
         res.once('close', () => abortController.abort());
         await this.policy.authorize(action, { params, tabId, signal: abortController.signal });
 
@@ -753,7 +762,18 @@ export class WebUiServer {
         this._updateVisualLease(action, tabId, result, params, controllerSessionId);
         res.json({ code: 0, data: result });
       } catch (err) {
-        res.json({ code: 1, message: err.message });
+        const message = requestContext?.abortController.signal.aborted
+          ? '用户已取消当前浏览器控制'
+          : err.message;
+        if (!res.headersSent) res.json({ code: 1, message });
+      } finally {
+        if (requestContext) {
+          this.visualLeases.unregister(
+            requestContext.tabId,
+            requestContext.controllerSessionId,
+            requestContext.abortController
+          );
+        }
       }
     });
 
