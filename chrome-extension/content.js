@@ -12,6 +12,8 @@
 (() => {
   'use strict';
 
+  const CONTENT_SCRIPT_CAPABILITY = 'page-layout-offset-v1';
+
   // ==================== 1. 反检测 / 通用工具 ====================
 
   /** 随机整数 [min, max] */
@@ -420,6 +422,16 @@
   const CANCEL_BTN_ID = 'ca-visual-cancel-btn';
   const CONTROL_FAVICON_ID = 'ca-browserpilot-control-favicon';
   const Z_INDEX = 2147483646; // 仅低于 2147483647，确保盖在页面之上
+  const pageLayoutApi = globalThis.BrowserPilotPageLayoutOffset;
+  const PAGE_LAYOUT_ACTIVE_ATTRIBUTE = pageLayoutApi?.ACTIVE_ATTRIBUTE || 'data-ca-visual-banner-offset';
+  const PAGE_LAYOUT_ACTIVE_ATTRIBUTE_VALUE = pageLayoutApi?.ACTIVE_ATTRIBUTE_VALUE || 'browserpilot-active';
+  const PAGE_LAYOUT_BASE_PADDING_PROPERTY = pageLayoutApi?.BASE_PADDING_PROPERTY || '--ca-visual-page-padding-top';
+  const PAGE_LAYOUT_BANNER_HEIGHT_PROPERTY = pageLayoutApi?.BANNER_HEIGHT_PROPERTY || '--ca-visual-banner-height';
+  const PAGE_LAYOUT_TRANSITION_MS = pageLayoutApi?.TRANSITION_MS || 220;
+  const PageLayoutOffsetController = pageLayoutApi?.PageLayoutOffsetController || class {
+    attach() {}
+    stop() {}
+  };
 
   /**
    * 通过临时 favicon 呈现标签页级控制状态。Chrome 不开放原生标签栏绘制 API，
@@ -478,6 +490,7 @@
       this._rafTimeoutId = null;         // 动画超时兜底 timer id
       this._cancelCb = null;             // 取消按钮回调
       this.tabStatus = new TabControlStatusController();
+      this.pageLayout = new PageLayoutOffsetController();
     }
 
     // ── 样式注入 ───────────────────────────
@@ -504,6 +517,15 @@
 #${OVERLAY_ROOT_ID} * {
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+html[${PAGE_LAYOUT_ACTIVE_ATTRIBUTE}="${PAGE_LAYOUT_ACTIVE_ATTRIBUTE_VALUE}"] {
+  padding-top: calc(
+    var(${PAGE_LAYOUT_BASE_PADDING_PROPERTY}, 0px) +
+    var(${PAGE_LAYOUT_BANNER_HEIGHT_PROPERTY}, 0px)
+  ) !important;
+  box-sizing: border-box !important;
+  transition: padding-top ${PAGE_LAYOUT_TRANSITION_MS}ms ease-out !important;
 }
 
 /* ── 顶部提示条 ── */
@@ -638,6 +660,7 @@
 .${HINT_CLASS}.ca-hint-show { opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
+  html[${PAGE_LAYOUT_ACTIVE_ATTRIBUTE}="${PAGE_LAYOUT_ACTIVE_ATTRIBUTE_VALUE}"] { transition: none !important; }
   #${BANNER_ID} { animation: none; transform: translateY(0); }
   .${HALO_CLASS} { animation: none; }
   .${PULSE_CLASS} { animation-duration: 180ms; }
@@ -700,6 +723,7 @@
     stop(options = {}) {
       this._cancelRaf();
       clearTimeout(this._autoStopTimer);
+      this.pageLayout.stop();
       if (this.banner) { this.banner.remove(); this.banner = null; }
       if (this.pointer) { this.pointer.remove(); this.pointer = null; }
       if (this.hint) { this.hint.remove(); this.hint = null; }
@@ -962,6 +986,7 @@
 
       this.root.appendChild(banner);
       this.banner = banner;
+      this.pageLayout.attach(banner);
     }
 
     _buildPointer() {
@@ -1332,7 +1357,13 @@
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // ping 检测
     if (request.action === 'ping') {
-      sendResponse({ result: { status: 'ok', url: window.location.href } });
+      sendResponse({
+        result: {
+          status: 'ok',
+          url: window.location.href,
+          capabilities: [CONTENT_SCRIPT_CAPABILITY]
+        }
+      });
       return true;
     }
 

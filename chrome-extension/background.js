@@ -3,6 +3,12 @@
 // 职责：Native Messaging 通信管理 + 指令路由到 content script
 
 const NATIVE_HOST_NAME = 'com.browserpilot.bridge';
+const CONTENT_SCRIPT_CAPABILITY = 'page-layout-offset-v1';
+const CONTENT_SCRIPT_FILES = Object.freeze(['page-layout-offset.js', 'content.js']);
+const CONTENT_SCRIPT_UPGRADE_FILES = Object.freeze([
+  'page-layout-offset.js',
+  'page-layout-offset-bootstrap.js'
+]);
 
 // ── 状态 ──────────────────────────────────
 let nativePort = null;
@@ -1091,8 +1097,9 @@ async function blobToBase64(blob) {
 }
 
 async function ensureContentScriptInjected(tabId) {
+  let response;
   try {
-    await new Promise((resolve, reject) => {
+    response = await new Promise((resolve, reject) => {
       chrome.tabs.sendMessage(tabId, { action: 'ping' }, (response) => {
         if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
         else resolve(response);
@@ -1102,7 +1109,17 @@ async function ensureContentScriptInjected(tabId) {
     await scriptingExecuteScript({
       target: { tabId },
       world: 'ISOLATED',
-      files: ['content.js']
+      files: CONTENT_SCRIPT_FILES
+    });
+    await new Promise(r => setTimeout(r, 200));
+    return;
+  }
+
+  if (!response?.result?.capabilities?.includes(CONTENT_SCRIPT_CAPABILITY)) {
+    await scriptingExecuteScript({
+      target: { tabId },
+      world: 'ISOLATED',
+      files: CONTENT_SCRIPT_UPGRADE_FILES
     });
     await new Promise(r => setTimeout(r, 200));
   }
