@@ -208,3 +208,15 @@ test('fallback injection loads the layout helper before the content script', asy
     /capabilities\?\.includes\(CONTENT_SCRIPT_CAPABILITY\)[\s\S]*?files: CONTENT_SCRIPT_FILES/
   );
 });
+
+test('content script uses a compact banner and a single text insertion path', async () => {
+  const contentSource = await readFile(
+    new URL('../../chrome-extension/content.js', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(contentSource, /min-height:\s*36px/);
+  assert.match(contentSource, /justify-content:\s*flex-start/);
+  assert.match(contentSource, /new InputEvent\('beforeinput'/);
+  assert.doesNotMatch(contentSource, /new KeyboardEvent\('(?:keydown|keypress|keyup)'/);
+});

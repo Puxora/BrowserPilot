@@ -8,10 +8,13 @@ export class VisualLeaseManager {
     this.wsServer = wsServer;
     this.leaseMs = leaseMs;
     this.leases = new Map();
+    this.cancelled = new Map();
+    this.inFlight = new Map();
   }
 
   start(tabId, sessionId) {
     if (!Number.isInteger(tabId) || !sessionId) return;
+    this.cancelled.delete(tabId);
     this._replace(tabId, sessionId);
   }
 
@@ -29,6 +32,41 @@ export class VisualLeaseManager {
     return this.leases.has(tabId);
   }
 
+  isCancelled(tabId, sessionId) {
+    if (!Number.isInteger(tabId) || !sessionId) return false;
+    return this.cancelled.get(tabId) === sessionId;
+  }
+
+  register(tabId, sessionId, controller) {
+    if (!Number.isInteger(tabId) || !sessionId || !controller) return;
+    const key = `${tabId}:${sessionId}`;
+    let controllers = this.inFlight.get(key);
+    if (!controllers) {
+      controllers = new Set();
+      this.inFlight.set(key, controllers);
+    }
+    controllers.add(controller);
+  }
+
+  unregister(tabId, sessionId, controller) {
+    const key = `${tabId}:${sessionId}`;
+    const controllers = this.inFlight.get(key);
+    if (!controllers) return;
+    controllers.delete(controller);
+    if (controllers.size === 0) this.inFlight.delete(key);
+  }
+
+  cancel(tabId) {
+    const lease = this.leases.get(tabId);
+    if (!lease) return false;
+    this.cancelled.set(tabId, lease.sessionId);
+    const key = `${tabId}:${lease.sessionId}`;
+    for (const controller of this.inFlight.get(key) || []) controller.abort();
+    this.inFlight.delete(key);
+    this.release(tabId, lease.sessionId);
+    return true;
+  }
+
   release(tabId, sessionId) {
     const lease = this.leases.get(tabId);
     if (!lease || (sessionId && lease.sessionId !== sessionId)) return;
@@ -43,7 +81,12 @@ export class VisualLeaseManager {
   async stop() {
     const tabIds = [...this.leases.keys()];
     for (const lease of this.leases.values()) clearTimeout(lease.timer);
+    for (const controllers of this.inFlight.values()) {
+      for (const controller of controllers) controller.abort();
+    }
     this.leases.clear();
+    this.cancelled.clear();
+    this.inFlight.clear();
 
     await Promise.allSettled(tabIds.map((tabId) => this._stopOverlay(tabId, 'daemon_stopped')));
   }

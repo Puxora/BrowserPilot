@@ -177,7 +177,7 @@ export class BrowserWsServer {
     });
 
     // 发送欢迎消息
-    ws.send(JSON.stringify({ type: 'welcome', payload: { version: '1.1.1' } }));
+    ws.send(JSON.stringify({ type: 'welcome', payload: { version: '1.1.2' } }));
   }
 
   _handleMessage(data) {
