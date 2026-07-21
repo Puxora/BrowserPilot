@@ -573,7 +573,7 @@ async function handleMessage(msg) {
         jsonrpc: '2.0', id,
         result: {
           protocolVersion: '2025-03-26',
-          serverInfo: { name: 'browser-pilot', version: '1.1.0' },
+          serverInfo: { name: 'browser-pilot', version: '1.1.1' },
           capabilities: { tools: {} }
         }
       };
