@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkg2tV+0rmvUa2NnM69EjnHiySRVAT5a0yznanwnRRqyO6vot2Q1YbOtoqs9eHegmfoQvpg1N3EiMwz7LbjEmuq1fcRPuOoLTnTmYQZYRic7CL51R7C+lGBN0G/eDCP3useq41Y6DyOqdO00BWaZU1O7nUTpmZUvyv2o/oiov2QQY25ws4lD28WKR43JygLBLDqHyVQt6FPIUwRzudu0FRGuTk0qL4o/zxPiAHOgGnthKwv3vOHGl2U4CO1mOu6iMTNiUFvbswZvcELKlrwWlsfUL9ElWKJV3M/wpV+vWxGRKG2R4o3xseysv2wpYJlNIaAd79je7GYqGnS54MMCUwwIDAQAB",
   "name": "BrowserPilot",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "面向 AI Agent 的本地浏览器控制桥接插件",
   "default_locale": "en",
   "permissions": [

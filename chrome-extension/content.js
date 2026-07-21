@@ -536,7 +536,7 @@ html[${PAGE_LAYOUT_ACTIVE_ATTRIBUTE}="${PAGE_LAYOUT_ACTIVE_ATTRIBUTE_VALUE}"] {
   min-height: 36px;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   gap: 9px;
   padding: 5px 10px;
   background: #ffffff;

@@ -216,7 +216,7 @@ test('content script uses a compact banner and a single text insertion path', as
   );
 
   assert.match(contentSource, /min-height:\s*36px/);
-  assert.match(contentSource, /justify-content:\s*flex-start/);
+  assert.match(contentSource, /justify-content:\s*center/);
   assert.match(contentSource, /new InputEvent\('beforeinput'/);
   assert.doesNotMatch(contentSource, /new KeyboardEvent\('(?:keydown|keypress|keyup)'/);
 });
