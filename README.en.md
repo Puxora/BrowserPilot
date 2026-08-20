@@ -51,6 +51,17 @@ To migrate from the former package, run `npm uninstall -g @pulab/browserpilot` b
 
 The command registers the Native Messaging Host for the current user. Open `chrome://extensions`, enable **Developer mode**, select **Load unpacked**, and choose the `chrome-extension` directory printed by the CLI.
 
+### Uninstall
+
+npm does not automatically remove the Chrome registry entries and Native Messaging configuration created by the CLI. Clean up the local bridge before removing the npm package:
+
+```bash
+browserpilot uninstall
+npm uninstall -g @puxora/browserpilot
+```
+
+`browserpilot uninstall` retains configuration, Tokens, tasks, and logs under `~/.browserpilot`. To permanently delete that local data too, explicitly run `browserpilot uninstall --purge`. Remove the Chrome extension separately from `chrome://extensions`.
+
 ### 2. Start the local service
 
 ```bash
