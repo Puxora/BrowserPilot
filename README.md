@@ -51,6 +51,17 @@ browserpilot install
 
 `install` 会注册当前用户的 Chrome Native Messaging Host。随后打开 `chrome://extensions`，开启“开发者模式”，选择“加载已解压的扩展程序”，并选中 CLI 输出的 `chrome-extension` 目录。
 
+### 卸载
+
+npm 不会自动移除 CLI 创建的 Chrome 注册表和 Native Messaging 配置。请先清理本地桥接，再卸载 npm 包：
+
+```bash
+browserpilot uninstall
+npm uninstall -g @puxora/browserpilot
+```
+
+`browserpilot uninstall` 保留 `~/.browserpilot` 下的配置、Token、任务和日志；如需同时永久删除这些本地数据，请明确执行 `browserpilot uninstall --purge`。Chrome 扩展仍需在 `chrome://extensions` 中手动移除。
+
 ### 2. 启动本地服务
 
 ```bash

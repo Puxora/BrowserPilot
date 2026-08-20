@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import net from 'net';
 import config, { isLoopbackHost } from '../src/config.js';
 import { ApiTokenStore } from '../src/token-store.js';
+import { uninstallNativeMessagingHost } from '../src/native-host-uninstall.js';
 import packageJson from '../package.json' with { type: 'json' };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -178,6 +179,9 @@ function printHelp() {
   console.log('用法:');
   console.log('  browserpilot install');
   console.log('      注册 Chrome Native Messaging Host');
+  console.log('');
+  console.log('  browserpilot uninstall [--purge]');
+  console.log('      清理 Chrome Native Messaging Host 与桥接文件；--purge 同时删除本地数据');
   console.log('');
   console.log('  browserpilot --version | -v | version');
   console.log('      输出当前 CLI 版本');
@@ -488,6 +492,41 @@ async function runInstall() {
   console.log('3. 扩展加载后，ID 应为 pmnpjmejdgnenigelhgpjjeiefabfile\n');
 }
 
+async function runUninstall(args) {
+  const purge = args.includes('--purge');
+  const unknownArgs = args.filter((arg) => arg !== '--purge');
+  if (unknownArgs.length > 0) {
+    throw new Error(`不支持的 uninstall 参数: ${unknownArgs.join(' ')}`);
+  }
+
+  console.log('╔══════════════════════════════════════════╗');
+  console.log('║      BrowserPilot - 卸载本地桥接         ║');
+  console.log('╚══════════════════════════════════════════╝\n');
+
+  await stopDaemon();
+  const result = await uninstallNativeMessagingHost();
+  const removedManifests = result.manifests.filter((item) => item.status === 'removed').length;
+  const skippedManifests = result.manifests.filter((item) => item.status === 'skipped');
+
+  console.log(`[OK] 已清理 ${removedManifests} 个 Native Messaging manifest 和桥接文件。`);
+  for (const manifest of skippedManifests) {
+    console.warn(`[Warning] 未删除 ${manifest.path}：文件内容不属于 BrowserPilot。`);
+  }
+  if (process.platform === 'win32') {
+    console.log('[OK] 已尝试清理 BrowserPilot 的 Chrome 注册表项。');
+  }
+
+  if (purge) {
+    await fs.rm(BROWSERPILOT_DIR, { recursive: true, force: true });
+    console.log(`[OK] 已删除本地数据目录: ${BROWSERPILOT_DIR}`);
+  } else {
+    console.log(`本地配置、Token、任务和日志仍保留在: ${BROWSERPILOT_DIR}`);
+    console.log('如需一并删除，请执行: browserpilot uninstall --purge');
+  }
+
+  console.log('\n请在 Chrome 的 chrome://extensions 页面手动移除 BrowserPilot 扩展。');
+}
+
 // ── 核心启动逻辑 ─────────────────────────
 async function main() {
   const args = process.argv.slice(2);
@@ -519,6 +558,11 @@ async function main() {
 
   if (args[0] === 'install') {
     await runInstall();
+    process.exit(0);
+  }
+
+  if (args[0] === 'uninstall') {
+    await runUninstall(args.slice(1));
     process.exit(0);
   }
 

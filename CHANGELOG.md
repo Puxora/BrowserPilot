@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-08-20
+
+### Added
+
+- 新增 `browserpilot uninstall`，可停止 daemon 并清理 BrowserPilot 创建的 Native Messaging 配置、Chrome 注册表项和桥接文件。
+- 新增 `browserpilot uninstall --purge`，用于在显式确认下同时删除本地配置、Token、任务和日志。
+
 ## [1.1.3] - 2026-07-21
 
 ### Fixed
