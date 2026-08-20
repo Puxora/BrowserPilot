@@ -285,6 +285,8 @@ Cron expressions use five fields, such as `0 9 * * *` (09:00 daily) and `*/30 * 
 | --- | --- |
 | `browserpilot --version` / `browserpilot -v` / `browserpilot version` | Show the current CLI version. |
 | `browserpilot install` | Register the Chrome Native Messaging Host for the current user. |
+| `browserpilot uninstall` | Stop the daemon and remove BrowserPilot-created Native Messaging manifests, Chrome registry entries, and bridge files while retaining local data. |
+| `browserpilot uninstall --purge` | Permanently remove configuration, Tokens, tasks, and logs under `~/.browserpilot` after the standard cleanup. |
 | `browserpilot start` | Start the daemon, dashboard, and scheduler in the background on `127.0.0.1:9876` by default. |
 | `browserpilot start --foreground` | Start the daemon in the current terminal for debugging or live logs. |
 | `browserpilot start --listen-host <ip> --port <port>` | Set the HTTP listener and port; non-loopback use requires explicit security configuration. |
