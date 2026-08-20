@@ -295,6 +295,8 @@ Cron 使用五段表达式，例如 `0 9 * * *`（每天 09:00）、`*/30 * * * 
 | --- | --- |
 | `browserpilot --version` / `browserpilot -v` / `browserpilot version` | 查看当前 CLI 版本。 |
 | `browserpilot install` | 注册当前用户的 Chrome Native Messaging Host。 |
+| `browserpilot uninstall` | 停止 daemon，并清理 BrowserPilot 创建的 Native Messaging manifest、Chrome 注册表项和桥接文件；保留本地数据。 |
+| `browserpilot uninstall --purge` | 在完成普通卸载清理后，永久删除 `~/.browserpilot` 中的配置、Token、任务和日志。 |
 | `browserpilot start` | 后台启动 daemon、Web UI 与调度器；默认仅监听 `127.0.0.1:9876`。 |
 | `browserpilot start --foreground` | 在当前终端前台启动 daemon，适合调试或查看实时日志。 |
 | `browserpilot start --listen-host <ip> --port <port>` | 指定监听地址和 HTTP 端口；非 loopback 必须显式配置安全环境变量。 |
