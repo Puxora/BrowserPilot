@@ -11,10 +11,12 @@ import { TaskStore } from './storage.js';
 import { VisualLeaseManager } from './visual-lease-manager.js';
 import { BrowserOperationPolicy } from './security-policy.js';
 import { ApiTokenStore } from './token-store.js';
+import { createRuntimeInfo } from './runtime-info.js';
 import Cron from 'croner';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '..');
+const DAEMON_RUNTIME_INFO = createRuntimeInfo(import.meta.url);
 
 function resolveExtensionDir() {
   const candidates = [
@@ -304,6 +306,7 @@ export class WebUiServer {
         chromeConnected: this.wsServer.isConnected(),
         taskCount: tasks.length,
         wsPort: this.config.wsPort,
+        runtime: DAEMON_RUNTIME_INFO,
       });
     });
 
@@ -516,6 +519,18 @@ export class WebUiServer {
         res.json({ code: 0, message: '设置保存成功' });
       } catch (err) {
         res.status(400).json({ code: 1, message: '保存设置失败: ' + err.message });
+      }
+    });
+
+    // ── 局部更新全局设置 ──────────────────
+    // 供受信任的本机集成同步单个权限项，避免覆盖管理后台维护的站点例外等字段。
+    api.patch('/settings', async (req, res) => {
+      try {
+        const store = this.scheduler?.store || new TaskStore(this.config);
+        const settings = await store.updateSettings(req.body);
+        res.json({ code: 0, message: '设置更新成功', data: settings });
+      } catch (err) {
+        res.status(400).json({ code: 1, message: '更新设置失败: ' + err.message });
       }
     });
 
@@ -747,7 +762,7 @@ export class WebUiServer {
           return res.status(403).json({ code: 1, message: '该标签页由其他控制会话持有' });
         }
 
-        const resumesControl = action === 'claimTab' || action === 'visualStart';
+        const resumesControl = this._resumesVisualControl(action, params);
         if (!resumesControl && this.visualLeases.isCancelled(tabId, controllerSessionId)) {
           return res.json({ code: 1, message: '用户已取消当前浏览器控制，请重新认领标签页后继续' });
         }
@@ -837,6 +852,11 @@ export class WebUiServer {
     }
     if (!Number.isInteger(tabId) || !this.visualLeases.has(tabId)) return true;
     return this.visualLeases.owns(tabId, controllerSessionId);
+  }
+
+  _resumesVisualControl(action, params = {}) {
+    return action === 'visualStart'
+      || (action === 'claimTab' && params.resumeCancelled !== false);
   }
 
   _isAllowedHost(hostHeader, remoteAddress) {

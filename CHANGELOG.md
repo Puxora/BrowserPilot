@@ -2,7 +2,24 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，并采用 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [1.1.6] - 2026-08-21
+
+### Added
+
+- 截图工具支持 MCP 图片内容返回，以及由 Agent 指定绝对或相对路径保存本地文件。
+- 新增受认证的全局设置局部更新接口，供 DSH 等受信任的本机集成同步权限且不覆盖站点例外。
+
+### Changed
+
+- 普通浏览器操作首次接管后持续显示控制提示栏，页面导航从新文档加载开始阶段立即恢复；明确释放、用户取消、连接结束或租约到期时再关闭。
+- 长截图统一采用滚动拼接并移除扩展 debugger 权限，旧客户端传入 debugger 策略时也不会再触发 Chrome 原生调试提示栏。
+- `browser_navigate` 未指定 `tabId` 时改为创建新标签页，避免覆盖 Agent 自身页面或用户当前活动页面。
+- 所有普通与长截图统一经过全局节流队列（最少间隔 650ms）并对 Chrome 临时图像读回/额度错误退避重试，避免 `MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND` 限流。
+- 长截图期间会临时隐藏 BrowserPilot 自绘提示条、指针及其页面占位空间，避免它们被重复拼接到截图中。
+
+### Fixed
+
+- 控制结束、扩展重载或 Chrome 重启时会幂等清理所有 BrowserPilot 控制态 favicon，并重新激活网页原图标，避免 Chrome favicon 缓存导致标签绿点遗留。
 
 ## [1.1.5] - 2026-08-20
 

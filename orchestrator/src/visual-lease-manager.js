@@ -10,6 +10,7 @@ export class VisualLeaseManager {
     this.leases = new Map();
     this.cancelled = new Map();
     this.inFlight = new Map();
+    this.nextGeneration = 0;
   }
 
   start(tabId, sessionId) {
@@ -46,6 +47,8 @@ export class VisualLeaseManager {
       this.inFlight.set(key, controllers);
     }
     controllers.add(controller);
+    // 从请求开始而不是完成后续租，避免接近租约边界的长操作被旧计时器中断。
+    this.refresh(tabId, sessionId);
   }
 
   unregister(tabId, sessionId, controller) {
@@ -95,17 +98,25 @@ export class VisualLeaseManager {
     const existing = this.leases.get(tabId);
     if (existing) clearTimeout(existing.timer);
 
+    const generation = ++this.nextGeneration;
     const timer = setTimeout(() => {
-      void this._expire(tabId, sessionId);
+      void this._expire(tabId, sessionId, generation);
     }, this.leaseMs);
     timer.unref?.();
 
-    this.leases.set(tabId, { sessionId, timer });
+    this.leases.set(tabId, { sessionId, generation, timer });
   }
 
-  async _expire(tabId, sessionId) {
+  async _expire(tabId, sessionId, generation) {
     const lease = this.leases.get(tabId);
-    if (!lease || lease.sessionId !== sessionId) return;
+    if (!lease || lease.sessionId !== sessionId || lease.generation !== generation) return;
+
+    // 正在执行的浏览器命令拥有优先权。重新计时，待命令完成并进入空闲期后再回收。
+    const key = `${tabId}:${sessionId}`;
+    if ((this.inFlight.get(key)?.size || 0) > 0) {
+      this._replace(tabId, sessionId);
+      return;
+    }
 
     this.leases.delete(tabId);
     console.log(`[Web UI] 控制租约到期，关闭提示条: tab ${tabId}`);
