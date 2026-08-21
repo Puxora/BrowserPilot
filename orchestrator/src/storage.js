@@ -196,4 +196,13 @@ export class TaskStore {
     await mkdir(dirname(file), { recursive: true }).catch(() => {});
     await writeFile(file, JSON.stringify(validateSettings(settings), null, 2), 'utf8');
   }
+
+  async updateSettings(patch) {
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+      throw new Error('设置更新必须是对象');
+    }
+    const settings = validateSettings({ ...await this.getSettings(), ...patch });
+    await this.saveSettings(settings);
+    return settings;
+  }
 }
