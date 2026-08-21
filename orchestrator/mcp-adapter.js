@@ -3,20 +3,24 @@
 // stdio transport → HTTP 转发到 daemon API
 // Claude Code 通过 stdio 启动此进程，实现 MCP 集成
 
-import { readFile } from 'fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'fs/promises';
 import { request } from 'http';
 import { randomUUID } from 'crypto';
 import { homedir } from 'os';
-import { join } from 'path';
+import { dirname, extname, join, resolve as resolvePath } from 'path';
+import { createRuntimeInfo } from './src/runtime-info.js';
 
 const DAEMON_API = resolveDaemonApi();
 const API_TOKEN = await resolveApiToken();
+const MCP_RUNTIME_INFO = createRuntimeInfo(import.meta.url);
 let requestId = 0;
 const controller = {
   label: normalizeControllerLabel(process.env.CA_CONTROLLER_LABEL),
   sessionId: randomUUID(),
   controlledTabIds: new Set(),
 };
+
+const SCREENSHOT_TOOLS = new Set(['browser_screenshot', 'browser_long_screenshot']);
 
 function resolveDaemonApi() {
   const args = process.argv.slice(2);
@@ -56,12 +60,12 @@ const TOOLS = [
   },
   {
     name: 'browser_navigate',
-    description: '在浏览器中导航到指定URL或查找已有标签页',
+    description: '打开指定 URL。未传 tabId 时自动新建标签页，避免覆盖 Agent 或用户当前页面；只有明确传入 tabId 才导航已有标签页',
     inputSchema: {
       type: 'object',
       properties: {
         url: { type: 'string', description: '要导航到的URL地址' },
-        tabId: { type: 'number', description: '可选，目标标签页ID' }
+        tabId: { type: 'number', description: '可选，明确要复用的目标标签页 ID；省略时创建新标签页' }
       },
       required: ['url']
     }
@@ -194,25 +198,31 @@ const TOOLS = [
   },
   {
     name: 'browser_screenshot',
-    description: '截取当前标签页的可视区域截图，返回base64编码',
+    description: '截取当前标签页的可视区域。默认以 MCP 图片内容返回；可指定 path 保存到本机文件',
     inputSchema: {
       type: 'object',
-      properties: { tabId: { type: 'number', description: '可选' } }
+      properties: {
+        tabId: { type: 'number', description: '可选' },
+        output: { type: 'string', enum: ['image', 'file'], description: '返回方式，默认 image；传 path 时自动使用 file' },
+        path: { type: 'string', description: '可选，截图文件或目录路径；支持绝对路径或相对 MCP adapter 工作目录的路径' },
+        overwrite: { type: 'boolean', description: '文件已存在时是否覆盖，默认 false' }
+      }
     }
   },
   {
     name: 'browser_long_screenshot',
-    description: '截取当前标签页长截图。优先使用 Chrome Debugger 的 fullPage 截图，失败时自动分段滚动拼接',
+    description: '截取当前标签页长截图。始终使用滚动拼接，不会触发 Chrome 原生调试提示栏',
     inputSchema: {
       type: 'object',
       properties: {
         tabId: { type: 'number', description: '可选，目标标签页ID' },
-        strategy: { type: 'string', enum: ['auto', 'debugger', 'stitch'], description: '截图策略，默认 auto' },
-        format: { type: 'string', enum: ['png', 'jpeg'], description: 'debugger 策略下的图片格式，默认 png' },
-        quality: { type: 'number', description: 'jpeg 质量 1-100，默认90' },
+        strategy: { type: 'string', enum: ['auto', 'stitch'], description: '兼容参数；当前始终使用 stitch' },
         maxHeight: { type: 'number', description: '最大截图高度，默认30000px，避免超大页面撑爆消息' },
-        delayMs: { type: 'number', description: 'stitch 策略每次滚动后的等待时间，默认350ms' },
-        hideFixed: { type: 'boolean', description: 'stitch 策略是否临时隐藏 fixed/sticky 元素，默认 true' }
+        delayMs: { type: 'number', description: 'stitch 策略每次滚动后的等待时间，最少 650ms；默认 650ms，避免触发 Chrome 截图额度限制' },
+        hideFixed: { type: 'boolean', description: 'stitch 策略是否临时隐藏 fixed/sticky 元素，默认 true' },
+        output: { type: 'string', enum: ['image', 'file'], description: '返回方式，默认 image；传 path 时自动使用 file' },
+        path: { type: 'string', description: '可选，截图文件或目录路径；支持绝对路径或相对 MCP adapter 工作目录的路径' },
+        overwrite: { type: 'boolean', description: '文件已存在时是否覆盖，默认 false' }
       }
     }
   },
@@ -573,7 +583,7 @@ async function handleMessage(msg) {
         jsonrpc: '2.0', id,
         result: {
           protocolVersion: '2025-03-26',
-          serverInfo: { name: 'browser-pilot', version: '1.1.5' },
+          serverInfo: { name: 'browser-pilot', version: '1.1.6' },
           capabilities: { tools: {} }
         }
       };
@@ -589,9 +599,7 @@ async function handleMessage(msg) {
         const result = await callTool(params.name, params.arguments || {});
         return {
           jsonrpc: '2.0', id,
-          result: {
-            content: [{ type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result, null, 2) }]
-          }
+          result: await formatToolResult(params.name, params.arguments || {}, result)
         };
       } catch (err) {
         return {
@@ -687,7 +695,8 @@ async function callTool(name, args) {
 
   // 系统状态
   if (name === 'system_status') {
-    return httpRequest('GET', `${DAEMON_API}/status`);
+    const status = await httpRequest('GET', `${DAEMON_API}/status`);
+    return { ...status, mcp: MCP_RUNTIME_INFO };
   }
 
   throw new Error(`未知工具: ${name}`);
@@ -718,15 +727,26 @@ async function callBrowserTool(name, actionName, args) {
       visual: true,
       cursor: true,
       showCancel: args.showCancel !== false,
+      resumeCancelled: true,
     });
     if (Number.isInteger(result?.tabId)) controller.controlledTabIds.add(result.tabId);
     return result;
   }
 
   if (AUTO_CONTROLLED_TOOLS.has(name)) {
-    const tabId = await ensureVisualControl(args.tabId);
+    let actionArgs = withoutScreenshotOutputOptions(name, args);
+    if (name === 'browser_navigate' && !Number.isInteger(actionArgs.tabId)) {
+      const created = await httpPost(`${DAEMON_API}/browser/createTab`, {
+        url: 'about:blank',
+      });
+      if (!Number.isInteger(created?.tabId)) {
+        throw new Error('无法创建安全导航标签页');
+      }
+      actionArgs = { ...actionArgs, tabId: created.tabId };
+    }
+    const tabId = await ensureVisualControl(actionArgs.tabId);
     return httpPost(`${DAEMON_API}/browser/${actionName}`, {
-      ...args,
+      ...actionArgs,
       tabId,
       controllerSessionId: controller.sessionId,
     });
@@ -740,8 +760,11 @@ async function callBrowserTool(name, actionName, args) {
       ...args,
       controllerSessionId: controller.sessionId,
     });
-    if (Number.isInteger(args.tabId)) controller.controlledTabIds.delete(args.tabId);
-    else controller.controlledTabIds.clear();
+    if (Number.isInteger(args.tabId)) {
+      controller.controlledTabIds.delete(args.tabId);
+    } else {
+      controller.controlledTabIds.clear();
+    }
     return result;
   }
 
@@ -759,8 +782,12 @@ async function callBrowserTool(name, actionName, args) {
       ...args,
       controllerSessionId: controller.sessionId,
     });
-    for (const tabId of args.releaseTabIds || []) controller.controlledTabIds.delete(tabId);
-    for (const tabId of args.closeTabIds || []) controller.controlledTabIds.delete(tabId);
+    for (const tabId of args.releaseTabIds || []) {
+      controller.controlledTabIds.delete(tabId);
+    }
+    for (const tabId of args.closeTabIds || []) {
+      controller.controlledTabIds.delete(tabId);
+    }
     return result;
   }
 
@@ -783,8 +810,11 @@ async function callBrowserTool(name, actionName, args) {
       ...args,
       controllerSessionId: controller.sessionId,
     });
-    if (Number.isInteger(args.tabId)) controller.controlledTabIds.delete(args.tabId);
-    else controller.controlledTabIds.clear();
+    if (Number.isInteger(args.tabId)) {
+      controller.controlledTabIds.delete(args.tabId);
+    } else {
+      controller.controlledTabIds.clear();
+    }
     return result;
   }
 
@@ -799,8 +829,6 @@ async function callBrowserTool(name, actionName, args) {
 }
 
 async function ensureVisualControl(tabId) {
-  if (Number.isInteger(tabId) && controller.controlledTabIds.has(tabId)) return tabId;
-
   const claim = await httpPost(`${DAEMON_API}/browser/claimTab`, {
     ...(Number.isInteger(tabId) ? { tabId } : {}),
     controllerSessionId: controller.sessionId,
@@ -808,10 +836,17 @@ async function ensureVisualControl(tabId) {
     visual: true,
     cursor: true,
     showCancel: true,
+    resumeCancelled: false,
   });
   const resolvedTabId = claim?.tabId ?? tabId;
   if (Number.isInteger(resolvedTabId)) controller.controlledTabIds.add(resolvedTabId);
   return resolvedTabId;
+}
+
+function withoutScreenshotOutputOptions(name, args) {
+  if (!SCREENSHOT_TOOLS.has(name)) return args;
+  const { output: _output, path: _path, overwrite: _overwrite, ...browserArgs } = args;
+  return browserArgs;
 }
 
 async function finalizeControlledTabs(reason) {
@@ -825,6 +860,108 @@ async function finalizeControlledTabs(reason) {
   });
   controller.controlledTabIds.clear();
   return result;
+}
+
+async function formatToolResult(name, args, result) {
+  if (!SCREENSHOT_TOOLS.has(name) || typeof result?.screenshot !== 'string') {
+    return {
+      content: [{
+        type: 'text',
+        text: typeof result === 'string' ? result : JSON.stringify(result, null, 2),
+      }],
+    };
+  }
+
+  const image = parseScreenshotDataUrl(result.screenshot);
+  const metadata = { ...result };
+  delete metadata.screenshot;
+  metadata.mimeType = image.mimeType;
+  metadata.bytes = image.buffer.length;
+
+  const output = args.path ? 'file' : (args.output || 'image');
+  if (output !== 'image' && output !== 'file') {
+    throw new Error(`不支持的截图输出方式: ${output}`);
+  }
+  if (output === 'file') {
+    const savedPath = await saveScreenshotFile(image, args, metadata.tabId);
+    metadata.path = savedPath;
+    return {
+      content: [{ type: 'text', text: JSON.stringify(metadata, null, 2) }],
+    };
+  }
+
+  return {
+    content: [
+      { type: 'image', data: image.base64, mimeType: image.mimeType },
+      { type: 'text', text: JSON.stringify(metadata, null, 2) },
+    ],
+  };
+}
+
+function parseScreenshotDataUrl(dataUrl) {
+  const match = /^data:(image\/(?:png|jpeg));base64,([a-z0-9+/=\r\n]+)$/i.exec(dataUrl);
+  if (!match) throw new Error('截图返回了不支持的图片数据格式');
+  const base64 = match[2].replace(/\s+/g, '');
+  const buffer = Buffer.from(base64, 'base64');
+  if (buffer.length === 0) throw new Error('截图图片数据为空');
+  return { mimeType: match[1].toLowerCase(), base64, buffer };
+}
+
+async function saveScreenshotFile(image, args, tabId) {
+  const extension = image.mimeType === 'image/jpeg' ? '.jpg' : '.png';
+  const requestedPath = String(args.path || '').trim();
+  const filename = createScreenshotFilename(tabId, extension);
+  let outputPath;
+
+  if (requestedPath) {
+    const expanded = requestedPath === '~'
+      ? homedir()
+      : requestedPath.replace(/^~(?=[\\/])/, () => homedir());
+    outputPath = resolvePath(expanded);
+    const directoryRequested = /[\\/]$/.test(requestedPath) || await isDirectory(outputPath);
+    if (directoryRequested) {
+      outputPath = join(outputPath, filename);
+    } else {
+      const requestedExtension = extname(outputPath).toLowerCase();
+      if (!requestedExtension) {
+        outputPath += extension;
+      } else if (!isMatchingImageExtension(requestedExtension, image.mimeType)) {
+        throw new Error(`截图路径扩展名与图片格式不一致: ${requestedExtension}`);
+      }
+    }
+  } else {
+    outputPath = join(homedir(), '.browserpilot', 'screenshots', filename);
+  }
+
+  await mkdir(dirname(outputPath), { recursive: true });
+  try {
+    await writeFile(outputPath, image.buffer, { flag: args.overwrite === true ? 'w' : 'wx' });
+  } catch (err) {
+    if (err?.code === 'EEXIST') {
+      throw new Error(`截图文件已存在，如需覆盖请传 overwrite=true: ${outputPath}`);
+    }
+    throw err;
+  }
+  return outputPath;
+}
+
+function createScreenshotFilename(tabId, extension) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const tabPart = Number.isInteger(tabId) ? `tab-${tabId}-` : '';
+  return `${tabPart}${timestamp}${extension}`;
+}
+
+async function isDirectory(path) {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function isMatchingImageExtension(extension, mimeType) {
+  if (mimeType === 'image/png') return extension === '.png';
+  return extension === '.jpg' || extension === '.jpeg';
 }
 
 // ── HTTP 客户端 ──────────────────────────

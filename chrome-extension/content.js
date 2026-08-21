@@ -421,6 +421,8 @@
   const HINT_CLASS = 'ca-visual-action-hint';
   const CANCEL_BTN_ID = 'ca-visual-cancel-btn';
   const CONTROL_FAVICON_ID = 'ca-browserpilot-control-favicon';
+  const CONTROL_FAVICON_RESET_ID = 'ca-browserpilot-control-favicon-reset';
+  const EMPTY_FAVICON_URL = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E";
   const Z_INDEX = 2147483646; // 仅低于 2147483647，确保盖在页面之上
   const pageLayoutApi = globalThis.BrowserPilotPageLayoutOffset;
   const PAGE_LAYOUT_ACTIVE_ATTRIBUTE = pageLayoutApi?.ACTIVE_ATTRIBUTE || 'data-ca-visual-banner-offset';
@@ -442,25 +444,95 @@
       this.icon = null;
       this.timerId = null;
       this.visible = false;
+      this.originalFaviconUrl = null;
+      // 扩展更新或手动重载后，页面可能仍保留旧 content script 注入的 favicon。
+      // 新实例不持有旧节点引用，因此初始化时先做一次全量回收。
+      this._capturePersistedOriginalFavicon();
+      if (this._removeControlFavicons() > 0) this._restorePageFavicon();
     }
 
-    start() {
-      this.stop();
+    start(originalFaviconUrl) {
+      this._clearTimer();
+      this.setOriginalFaviconUrl(originalFaviconUrl);
+      this._removeControlFavicons();
+      this._removeResetFavicons();
       this.icon = document.createElement('link');
       this.icon.id = CONTROL_FAVICON_ID;
       this.icon.rel = 'icon';
       this.icon.type = 'image/svg+xml';
-      document.head.appendChild(this.icon);
+      if (this.originalFaviconUrl) {
+        this.icon.dataset.caOriginalFaviconUrl = this.originalFaviconUrl;
+      }
+      (document.head || document.documentElement).appendChild(this.icon);
       this._render(true);
       this.timerId = window.setInterval(() => this._render(!this.visible), 700);
     }
 
     stop() {
-      if (this.timerId != null) window.clearInterval(this.timerId);
-      this.timerId = null;
-      this.icon?.remove();
+      this._clearTimer();
+      // 不只移除 this.icon：页面允许存在重复 id，旧 content script 的图标
+      // 不会被本实例引用。全量移除可使 stop 保持幂等，并清理重载遗留状态。
+      this._removeControlFavicons();
+      this._restorePageFavicon();
       this.icon = null;
       this.visible = false;
+    }
+
+    _clearTimer() {
+      if (this.timerId != null) window.clearInterval(this.timerId);
+      this.timerId = null;
+    }
+
+    _removeControlFavicons() {
+      const controlIcons = document.querySelectorAll(`link#${CONTROL_FAVICON_ID}`);
+      controlIcons.forEach((icon) => icon.remove());
+      return controlIcons.length;
+    }
+
+    _capturePersistedOriginalFavicon() {
+      const persistedIcons = document.querySelectorAll(
+        `link#${CONTROL_FAVICON_ID}, link#${CONTROL_FAVICON_RESET_ID}`
+      );
+      for (const icon of persistedIcons) {
+        if (this.setOriginalFaviconUrl(icon.dataset.caOriginalFaviconUrl)) return;
+      }
+    }
+
+    setOriginalFaviconUrl(value) {
+      const url = typeof value === 'string' ? value.trim() : '';
+      const controlPrefix = chrome.runtime.getURL('icons/control-status-');
+      if (!url || url === EMPTY_FAVICON_URL || url.startsWith(controlPrefix)) return false;
+      this.originalFaviconUrl = url;
+      if (this.icon) this.icon.dataset.caOriginalFaviconUrl = url;
+      return true;
+    }
+
+    _restorePageFavicon() {
+      // Chrome 会缓存最后一次采用的 favicon；只移除控制图标并不会总是立即回退。
+      // 有网页图标时重新插入；没有时保留一个空图标覆盖缓存中的绿色控制点。
+      this._removeResetFavicons();
+      const pageIcons = [...document.querySelectorAll('link[rel~="icon"]')]
+        .filter((icon) => icon.id !== CONTROL_FAVICON_ID && icon.id !== CONTROL_FAVICON_RESET_ID);
+      if (pageIcons.length === 0) {
+        const resetIcon = document.createElement('link');
+        resetIcon.id = CONTROL_FAVICON_RESET_ID;
+        resetIcon.rel = 'icon';
+        resetIcon.href = this.originalFaviconUrl || EMPTY_FAVICON_URL;
+        if (this.originalFaviconUrl) {
+          resetIcon.dataset.caOriginalFaviconUrl = this.originalFaviconUrl;
+        } else {
+          resetIcon.type = 'image/svg+xml';
+        }
+        (document.head || document.documentElement).appendChild(resetIcon);
+        return;
+      }
+      pageIcons.forEach((icon) => {
+        icon.replaceWith(icon.cloneNode(true));
+      });
+    }
+
+    _removeResetFavicons() {
+      document.querySelectorAll(`link#${CONTROL_FAVICON_RESET_ID}`).forEach((icon) => icon.remove());
     }
 
     _render(visible) {
@@ -700,7 +772,7 @@ html[${PAGE_LAYOUT_ACTIVE_ATTRIBUTE}="${PAGE_LAYOUT_ACTIVE_ATTRIBUTE_VALUE}"] {
       clearTimeout(this._autoStopTimer);
       this._active = true;
       this._cursorVisible = options.cursor !== false;
-      this.tabStatus.start();
+      this.tabStatus.start(options.originalFaviconUrl);
 
       this._buildBanner(options);
       if (this._cursorVisible) {
@@ -739,6 +811,9 @@ html[${PAGE_LAYOUT_ACTIVE_ATTRIBUTE}="${PAGE_LAYOUT_ACTIVE_ATTRIBUTE_VALUE}"] {
      */
     update(options = {}) {
       this.ensureOverlay();
+      if (options.originalFaviconUrl) {
+        this.tabStatus.setOriginalFaviconUrl(options.originalFaviconUrl);
+      }
       if (!this.banner) return { ok: false, reason: 'banner not started' };
 
       if (options.state) {

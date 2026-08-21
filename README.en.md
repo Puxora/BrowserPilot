@@ -315,6 +315,8 @@ Run `npm run check:tools` for the complete list. Prefer an **observe → act →
 | Tasks | `task_create`, `task_update`, `task_run`, `task_cancel`, `task_logs` | Manage, schedule, cancel, and audit local jobs. |
 | Status | `system_status`, `browser_controller_config` | Inspect connection status and declare the current controller. |
 
+Ordinary target-tab tools claim control before the first operation and keep the control banner visible until `browser_release_tab`, `browser_finalize_tabs`, user cancellation, connection shutdown, or lease expiry. During navigation, the banner is restored as soon as the new document starts and checked again when loading completes. `browser_navigate` creates a new tab when `tabId` is omitted so it cannot replace the page hosting an agent or the user's current work; an existing tab is reused only when its `tabId` is explicit. Screenshots return native MCP image content by default instead of placing Base64 in text. Pass `output: "file"` or `path` to save a local file. `path` may be absolute or relative to the MCP adapter working directory, and existing files are overwritten only with `overwrite: true`. Full-page screenshots always use scroll stitching and never trigger Chrome's native debugging banner; legacy `strategy: "debugger"` input safely falls back to stitching.
+
 ## Permissions and security
 
 Every dashboard setting maps to browser execution:
@@ -325,7 +327,7 @@ Every dashboard setting maps to browser execution:
 - **Upload policy** runs before AI opens a file input. `always`, `ask`, and `none` determine whether the system file picker opens. The user still selects local files; timeout denies by default.
 - **Remote authentication** protects every `/api` endpoint with a Token. The Web UI receives an HttpOnly, SameSite cookie only on loopback; remote MCP uses Bearer Tokens.
 
-The extension uses permissions including `tabs`, `scripting`, `debugger`, `nativeMessaging`, and `downloads` to control the real browser. Install only trusted builds, do not expose the daemon on an untrusted network, and never store passwords or Tokens in task source.
+The extension uses permissions including `tabs`, `scripting`, `nativeMessaging`, and `downloads` to control the real browser. Install only trusted builds, do not expose the daemon on an untrusted network, and never store passwords or Tokens in task source.
 
 ## Architecture
 

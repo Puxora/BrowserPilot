@@ -2,6 +2,8 @@
 // MV3 事件驱动设计：Service Worker 由事件激活，不依赖顶层代码
 // 职责：Native Messaging 通信管理 + 指令路由到 content script
 
+importScripts('capture-visible-tab.js', 'control-favicon.js');
+
 const NATIVE_HOST_NAME = 'com.browserpilot.bridge';
 const CONTENT_SCRIPT_CAPABILITY = 'page-layout-offset-v1';
 const CONTENT_SCRIPT_FILES = Object.freeze(['page-layout-offset.js', 'content.js']);
@@ -9,7 +11,8 @@ const CONTENT_SCRIPT_UPGRADE_FILES = Object.freeze([
   'page-layout-offset.js',
   'page-layout-offset-bootstrap.js'
 ]);
-
+const CONTROL_FAVICON_URL_PREFIX = chrome.runtime.getURL('icons/control-status-');
+const EMPTY_FAVICON_URL = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E";
 // ── 状态 ──────────────────────────────────
 let nativePort = null;
 let nativeHandshaken = false;        // 收到 host 回包后才置 true，是真实连接判据
@@ -19,10 +22,19 @@ let reconnectTimer = null;
 let keepAliveTimer = null;
 const RECONNECT_DELAY = 3000;
 const KEEP_ALIVE_INTERVAL = 25000; // 低于 Chrome 30s 休眠阈值
+// Chrome 对 tabs.captureVisibleTab 有很低的全局速率限制（通常每秒最多两次）。
+// 所有普通/长截图共用这条队列，避免多个 Agent 或滚动拼接彼此打爆额度。
+const CAPTURE_VISIBLE_TAB_MIN_INTERVAL_MS = 650;
+const CAPTURE_VISIBLE_TAB_MAX_ATTEMPTS = 3;
 
 // 待处理请求映射
 const pendingRequests = new Map();
 let requestIdCounter = 0;
+const captureQueue = new BrowserPilotCaptureVisibleTabQueue({
+  chromeApi: chrome,
+  minIntervalMs: CAPTURE_VISIBLE_TAB_MIN_INTERVAL_MS,
+  maxAttempts: CAPTURE_VISIBLE_TAB_MAX_ATTEMPTS,
+});
 
 // 可视化调试：当前正在自动化控制的标签页状态
 // key: tabId, value: { startedAt, label, cancelled }
@@ -37,12 +49,14 @@ const pendingUploads = new Map();
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[Background] 扩展已安装/更新，正在激活...');
   startConnection();
+  void BrowserPilotControlFavicon.clearStale(chrome);
 });
 
 // Chrome 启动时触发
 chrome.runtime.onStartup.addListener(() => {
   console.log('[Background] Chrome 启动，正在激活...');
   startConnection();
+  void BrowserPilotControlFavicon.clearStale(chrome);
 });
 
 // ── Native Messaging 连接管理 ─────────────
@@ -313,7 +327,13 @@ async function handleCommand(requestId, command) {
 // ── 浏览器操作实现 ─────────────────────────
 
 async function handleNavigate(tabId, params) {
-  const targetTabId = tabId || await getActiveTabId();
+  // 未明确指定目标时必须新建标签页。直接复用活动标签页可能覆盖承载
+  // Agent/DSH Web UI 的页面，导致控制端把自己导航走。
+  let targetTabId = tabId;
+  if (!targetTabId) {
+    const created = await tabsCreate({ url: 'about:blank', active: true });
+    targetTabId = created.id;
+  }
   await tabsUpdate(targetTabId, { url: params.url });
   await waitForTabLoad(targetTabId, params.waitTimeout || 30000);
   const tab = await tabsGet(targetTabId);
@@ -345,79 +365,22 @@ async function executeInTab(tabId, command) {
 
 async function handleScreenshot(tabId) {
   const targetTabId = tabId || await getActiveTabId();
-  const tab = await tabsGet(targetTabId);
-  const dataUrl = await captureVisibleTab(tab.windowId, { format: 'png' });
+  const dataUrl = await captureTabImage(targetTabId, { format: 'png' });
   return { tabId: targetTabId, screenshot: dataUrl };
 }
 
 async function handleLongScreenshot(tabId, params = {}) {
   const targetTabId = tabId || await getActiveTabId();
-  const strategy = params.strategy || 'auto';
-
-  if (strategy !== 'stitch') {
-    try {
-      return await captureFullPageWithDebugger(targetTabId, params);
-    } catch (err) {
-      if (strategy === 'debugger') throw err;
-      console.warn('[Background] debugger full screenshot failed, fallback to stitch:', err.message);
-    }
-  }
-
+  // 始终使用滚动拼接。旧客户端即使继续传 strategy=debugger 也会安全降级，
+  // 从执行层保证 BrowserPilot 不再触发 Chrome 原生调试提示栏。
   return captureFullPageByStitching(targetTabId, params);
-}
-
-async function captureFullPageWithDebugger(tabId, params = {}) {
-  const target = { tabId };
-  const format = params.format === 'jpeg' ? 'jpeg' : 'png';
-  const quality = clampNumber(params.quality, 1, 100, 90);
-  const maxHeight = clampNumber(params.maxHeight, 1000, 50000, 30000);
-  let attached = false;
-
-  try {
-    await debuggerAttach(target, '1.3');
-    attached = true;
-    await debuggerSendCommand(target, 'Page.enable', {});
-
-    const metrics = await debuggerSendCommand(target, 'Page.getLayoutMetrics', {});
-    const contentSize = metrics.cssContentSize || metrics.contentSize || {};
-    const width = Math.ceil(contentSize.width || 0);
-    const measuredHeight = Math.ceil(contentSize.height || 0);
-    if (!width || !measuredHeight) {
-      throw new Error('无法读取页面尺寸');
-    }
-
-    const height = Math.min(measuredHeight, maxHeight);
-    const captureParams = {
-      format,
-      captureBeyondViewport: true,
-      fromSurface: true,
-      clip: { x: 0, y: 0, width, height, scale: 1 }
-    };
-    if (format === 'jpeg') captureParams.quality = quality;
-
-    const captured = await debuggerSendCommand(target, 'Page.captureScreenshot', captureParams);
-    return {
-      tabId,
-      strategy: 'debugger',
-      format,
-      width,
-      height,
-      fullHeight: measuredHeight,
-      truncated: measuredHeight > height,
-      screenshot: `data:image/${format};base64,${captured.data}`
-    };
-  } finally {
-    if (attached) {
-      await debuggerDetach(target).catch(() => {});
-    }
-  }
 }
 
 async function captureFullPageByStitching(tabId, params = {}) {
   await ensureContentScriptInjected(tabId);
-  const tab = await tabsGet(tabId);
   const maxHeight = clampNumber(params.maxHeight, 1000, 50000, 30000);
-  const delayMs = clampNumber(params.delayMs, 0, 3000, 350);
+  // 额外页面稳定等待不能低于抓图队列的安全间隔，避免单任务本身超额调用。
+  const delayMs = clampNumber(params.delayMs, CAPTURE_VISIBLE_TAB_MIN_INTERVAL_MS, 3000, CAPTURE_VISIBLE_TAB_MIN_INTERVAL_MS);
   const hideFixed = params.hideFixed !== false;
   const capture = await executeInPageWorld(tabId, getScreenshotPageState);
   const viewportWidth = Math.ceil(capture.viewportWidth);
@@ -440,7 +403,7 @@ async function captureFullPageByStitching(tabId, params = {}) {
     for (const y of scrollPositions) {
       await executeInPageWorld(tabId, scrollToForScreenshot, [y]);
       await sleep(delayMs);
-      const dataUrl = await captureVisibleTab(tab.windowId, { format: 'png' });
+      const dataUrl = await captureTabImage(tabId, { format: 'png' });
       segments.push({
         dataUrl,
         sourceY: y,
@@ -504,15 +467,32 @@ function hideFixedElementsForScreenshot() {
       }
     }
   }
-  window.__chromeAutomationLongScreenshotHidden = hidden;
+  // BrowserPilot overlay 挂在 document.documentElement 下，不在 body 的扫描范围。
+  // 单独隐藏它，并撤销提示条预留的顶部空间，避免每一个拼接片段重复出现控制条。
+  const overlayRoot = document.getElementById('ca-visual-overlay-root');
+  if (overlayRoot) {
+    hidden.push([overlayRoot, overlayRoot.style.visibility]);
+    overlayRoot.style.visibility = 'hidden';
+  }
+  const overlayLayoutStyle = document.createElement('style');
+  overlayLayoutStyle.id = 'ca-long-screenshot-overlay-suppression';
+  overlayLayoutStyle.textContent = `
+html[data-ca-visual-banner-offset="browserpilot-active"] {
+  padding-top: var(--ca-visual-page-padding-top, 0px) !important;
+}
+`;
+  document.documentElement.appendChild(overlayLayoutStyle);
+  window.__chromeAutomationLongScreenshotHidden = { hidden, overlayLayoutStyle };
   return { hidden: hidden.length };
 }
 
 function restoreFixedElementsForScreenshot() {
-  const hidden = window.__chromeAutomationLongScreenshotHidden || [];
+  const state = window.__chromeAutomationLongScreenshotHidden || {};
+  const hidden = state.hidden || [];
   for (const [el, visibility] of hidden) {
     if (el && el.style) el.style.visibility = visibility;
   }
+  state.overlayLayoutStyle?.remove();
   delete window.__chromeAutomationLongScreenshotHidden;
   return { restored: hidden.length };
 }
@@ -606,12 +586,32 @@ async function handleClaimTab(tabId, params = {}) {
   let visualResult = null;
   if (visual) {
     const label = resolveAutomationLabel(params);
-    visualResult = await handleVisualStart(targetTabId, {
+    const activeVisual = activeAutomationTabs.get(targetTabId);
+    const visualOptions = {
       label,
       showCancel: params.showCancel !== false,
       theme: params.theme || 'light',
       cursor: params.cursor !== false,
-    });
+      originalFaviconUrl: activeVisual?.originalFaviconUrl || normalizeOriginalFaviconUrl(tab.favIconUrl),
+    };
+    let unchanged = activeVisual
+      && !activeVisual.cancelled
+      && activeVisual.label === visualOptions.label
+      && activeVisual.showCancel === visualOptions.showCancel
+      && activeVisual.theme === visualOptions.theme
+      && activeVisual.cursor === visualOptions.cursor;
+    if (unchanged) {
+      // content overlay 可能因 done 状态自行停止，而后台状态尚未来得及同步。
+      // 先做一次无副作用探测；DOM 被 SPA 清理时 visualUpdate 也会自动重建容器。
+      const visualState = await executeInTab(targetTabId, {
+        action: 'visualUpdate',
+        params: {},
+      }).catch(() => null);
+      unchanged = visualState?.ok === true;
+    }
+    visualResult = unchanged
+      ? { ok: true, started: false, active: true, tabId: targetTabId }
+      : await handleVisualStart(targetTabId, visualOptions);
   }
 
   const current = await tabsGet(targetTabId);
@@ -793,6 +793,26 @@ async function handleWaitForNavigation(tabId, params = {}) {
  */
 async function handleVisualStart(tabId, params) {
   const targetTabId = tabId || await getActiveTabId();
+  const tab = await tabsGet(targetTabId).catch(() => null);
+  const existing = activeAutomationTabs.get(targetTabId);
+
+  const normalizedParams = {
+    ...params,
+    label: resolveAutomationLabel(params),
+    originalFaviconUrl: normalizeOriginalFaviconUrl(params.originalFaviconUrl)
+      || existing?.originalFaviconUrl
+      || normalizeOriginalFaviconUrl(tab?.favIconUrl),
+  };
+  delete normalizedParams.message;
+  activeAutomationTabs.set(targetTabId, {
+    startedAt: existing?.startedAt || Date.now(),
+    label: normalizedParams.label,
+    cancelled: false,
+    showCancel: normalizedParams.showCancel !== false,
+    theme: normalizedParams.theme || 'light',
+    cursor: normalizedParams.cursor !== false,
+    originalFaviconUrl: normalizedParams.originalFaviconUrl || null,
+  });
 
   // 检查目标页面是否可注入 content script
   const injectable = await isTabInjectable(targetTabId);
@@ -800,21 +820,13 @@ async function handleVisualStart(tabId, params) {
     return { ok: false, error: injectable.error, tabId: targetTabId };
   }
 
-  const normalizedParams = {
-    ...params,
-    label: resolveAutomationLabel(params),
-  };
-  delete normalizedParams.message;
-
-  const result = await executeInTab(targetTabId, { action: 'visualStart', params: normalizedParams });
-  activeAutomationTabs.set(targetTabId, {
-    startedAt: Date.now(),
-    label: normalizedParams.label,
-    cancelled: false,
-    showCancel: normalizedParams.showCancel !== false,
-    theme: normalizedParams.theme || 'light',
-    cursor: normalizedParams.cursor !== false,
-  });
+  let result;
+  try {
+    result = await executeInTab(targetTabId, { action: 'visualStart', params: normalizedParams });
+  } catch (err) {
+    console.warn('[Background] 可视化控制将在页面就绪后恢复:', err.message);
+    return { ok: false, pending: true, error: err.message, tabId: targetTabId };
+  }
   console.log('[Background] 可视化调试已开启 tab:', targetTabId);
   return { ...result, tabId: targetTabId };
 }
@@ -1042,24 +1054,12 @@ function windowsUpdate(windowId, updateInfo) {
   return chromeCallback(done => chrome.windows.update(windowId, updateInfo, done));
 }
 
-function captureVisibleTab(tabId, options) {
-  return chromeCallback(done => chrome.tabs.captureVisibleTab(tabId, options, done));
+async function captureTabImage(tabId, options) {
+  return captureQueue.captureTab(tabId, options);
 }
 
 function scriptingExecuteScript(details) {
   return chromeCallback(done => chrome.scripting.executeScript(details, done));
-}
-
-function debuggerAttach(target, version) {
-  return chromeCallback(done => chrome.debugger.attach(target, version, done));
-}
-
-function debuggerDetach(target) {
-  return chromeCallback(done => chrome.debugger.detach(target, done));
-}
-
-function debuggerSendCommand(target, method, commandParams) {
-  return chromeCallback(done => chrome.debugger.sendCommand(target, method, commandParams, done));
 }
 
 async function executeInPageWorld(tabId, func, args = []) {
@@ -1223,22 +1223,50 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   controlledTabs.delete(tabId);
 });
 
-// 页面导航会卸载 content script 与 overlay。受控标签页加载完成后重新注入，
-// 保证全局 MCP 控制状态在导航前后保持可见。
+// 页面导航会卸载 content script 与 overlay。加载开始时立即恢复；加载完成时
+// 再探测一次并兜底，避免页面脚本重写根节点后清掉提示栏。
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.status !== 'complete') return;
   const control = activeAutomationTabs.get(tabId);
   if (!control || control.cancelled) return;
 
-  handleVisualStart(tabId, {
+  if (typeof changeInfo.url === 'string') control.originalFaviconUrl = null;
+  const faviconUrl = normalizeOriginalFaviconUrl(changeInfo.favIconUrl);
+  if (faviconUrl) {
+    control.originalFaviconUrl = faviconUrl;
+    void executeInTab(tabId, {
+      action: 'visualUpdate',
+      params: { originalFaviconUrl: faviconUrl },
+    }).catch(() => {});
+  }
+
+  if (changeInfo.status !== 'loading' && changeInfo.status !== 'complete') return;
+
+  void restoreVisualControlAfterNavigation(tabId, control, changeInfo.status);
+});
+
+async function restoreVisualControlAfterNavigation(tabId, control, phase) {
+  if (phase === 'complete') {
+    const visualState = await executeInTab(tabId, {
+      action: 'visualUpdate',
+      params: {},
+    }).catch(() => null);
+    if (visualState?.ok === true) return;
+  }
+
+  await handleVisualStart(tabId, {
     label: control.label,
     showCancel: control.showCancel,
     theme: control.theme,
     cursor: control.cursor,
-  }).catch(err => {
-    console.warn('[Background] 页面加载后恢复可视化控制失败:', err.message);
+    originalFaviconUrl: control.originalFaviconUrl,
   });
-});
+}
+
+function normalizeOriginalFaviconUrl(value) {
+  const url = typeof value === 'string' ? value.trim() : '';
+  if (!url || url === EMPTY_FAVICON_URL || url.startsWith(CONTROL_FAVICON_URL_PREFIX)) return null;
+  return url;
+}
 
 /**
  * 处理取消按钮事件（第一版）。

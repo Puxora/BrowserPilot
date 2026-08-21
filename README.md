@@ -325,6 +325,8 @@ Cron 使用五段表达式，例如 `0 9 * * *`（每天 09:00）、`*/30 * * * 
 | 自动化任务 | `task_create`、`task_update`、`task_run`、`task_cancel`、`task_logs` | 管理、调度、取消并审计本地任务。 |
 | 状态 | `system_status`、`browser_controller_config` | 查询连接状态、声明当前控制者。 |
 
+普通目标标签页工具会在首次操作前自动接管，并持续显示控制提示栏，直到调用 `browser_release_tab`、`browser_finalize_tabs`、用户取消控制、连接结束或控制租约到期。页面导航时提示栏会在新文档开始加载后立即恢复，并在加载完成时执行一次兜底检查。`browser_navigate` 未传 `tabId` 时会新建标签页，避免覆盖承载 Agent 或用户当前工作的页面；只有明确传入 `tabId` 才复用已有标签页。截图默认以 MCP 图片内容返回，不会把 Base64 放进文本结果；传入 `output: "file"` 或 `path` 可保存为本地文件。`path` 支持绝对路径和相对 MCP adapter 工作目录的路径，已有文件仅在 `overwrite: true` 时覆盖。长截图始终使用滚动拼接，不会触发 Chrome 原生调试提示栏；旧客户端传入的 `strategy: "debugger"` 会安全降级为拼接截图。
+
 ## 权限与安全
 
 管理面板中的设置均有对应的浏览器执行链路：
@@ -335,7 +337,7 @@ Cron 使用五段表达式，例如 `0 9 * * *`（每天 09:00）、`*/30 * * * 
 - **上传权限**：AI 点击文件输入框前执行 `always`、`ask`、`none` 策略。允许仅代表打开系统文件选择器；用户仍自行选择本地文件，超时默认拒绝。
 - **远程认证**：所有 `/api` 端点都需 Token。Web UI 只为 loopback 浏览器提供 HttpOnly、SameSite Cookie；远程 MCP 使用 Bearer Token。
 
-扩展需 `tabs`、`scripting`、`debugger`、`nativeMessaging`、`downloads` 等权限才能操作真实浏览器。只安装可信来源的版本，不要在不可信网络公开 daemon，也不要在任务源码中保存密码或 Token。
+扩展需 `tabs`、`scripting`、`nativeMessaging`、`downloads` 等权限才能操作真实浏览器。只安装可信来源的版本，不要在不可信网络公开 daemon，也不要在任务源码中保存密码或 Token。
 
 ## 架构与设计
 

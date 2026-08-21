@@ -69,7 +69,8 @@
 
 优势：
 
-- 长截图支持 fullPage 优先、失败后滚动拼接。
+- 长截图始终滚动拼接，不再申请 debugger 权限，从机制上避免 Chrome 原生调试提示栏。
+- 截图默认作为 MCP 图片内容返回，也可由 Agent 指定路径直接保存，避免将 Base64 暴露为长文本。
 - 可见 DOM 直接返回 node_id，适合 Agent 做 observe-act-check。
 
 ### 3.3 交互
